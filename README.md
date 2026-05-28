@@ -33,7 +33,7 @@
 
 ```bash
 git clone 저장소주소
-cd 150_project
+cd team405
 ```
 
 ---
