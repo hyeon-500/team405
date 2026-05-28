@@ -1,0 +1,9 @@
+
+DB 구조 변경 기록하는곳
+
+
+예 :
+
+      001_create_sensor_table.sql
+      002_add_weather_column.sql
+      003_add_risk_level.sql

@@ -1,0 +1,8 @@
+
+
+실제 SQLite 파일 저장하는곳
+
+예 : 
+
+      sqlite/
+      └── sensor.db  

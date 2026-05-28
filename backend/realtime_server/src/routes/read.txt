@@ -1,0 +1,1 @@
+웹/API 요청 처리 ex) GET/api/sensors 요청 오면 DB읽어서 JSON 반환

@@ -1,0 +1,16 @@
+
+DB 테이블 컬럼구조,타입 정의
+
+
+예 : 
+
+      schema/
+      └── sensor_schema.sql
+
+내용 : 
+
+      CREATE TABLE sensor_data (
+    id INTEGER PRIMARY KEY,
+    temperature REAL,
+    humidity REAL
+);

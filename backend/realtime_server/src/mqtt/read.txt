@@ -1,0 +1,2 @@
+
+MQTT 통신 처리 => ESP32가 JSON 파일 publish -> 서버가 subscribe
