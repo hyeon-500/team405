@@ -2,4 +2,13 @@
 
 공공데이터 csv 저장소
 
+컬럼
+Weather : 날씨(Rain/Clear/Fog)
+Road_Surface : Wet/Dry
+Time_of_Day : Dawn/Night/Daylight
+Speed : 속도(숫자)
+injuries_total : 0/1
+korea_fatality_weight : 도로교툥공단
+Risk_Level : SAFE/WARNING/DANGER
+
 
