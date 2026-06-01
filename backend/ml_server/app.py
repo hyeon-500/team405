@@ -3,15 +3,22 @@
 from flask import Flask, request, jsonify
 import pandas as pd
 import joblib
-import traceback # 에러 상세 추적용
+import os
+import traceback  # 에러 상세 추적용
 
 app = Flask(__name__)
+
+# =================================================================
+# 🛡️ 무적의 절대 경로 설정 (어디서 서버를 켜든 model 폴더를 정확히 추적합니다)
+# =================================================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, 'model', 'risk_model.pkl')
 
 # 모델 로드 (전역 변수 설정)
 model = None
 try:
-    model = joblib.load('model/risk_model.pkl')
-    print("✓ AI 모델(risk_model.pkl) 로드 완료. 서버가 구동됩니다.")
+    model = joblib.load(MODEL_PATH)
+    print(f"✓ AI 모델 로드 완료: {MODEL_PATH}")
 except Exception as e:
     print(f"🚨 모델 로드 실패! 'train_model.py'를 먼저 실행해 주세요.\n에러: {e}")
 
@@ -50,15 +57,19 @@ def predict_risk():
         time_mult = 1.3 if mapped_time in ['Night', 'Dawn'] else 1.0
         fatality_weight = round(base_weight * surface_mult * time_mult, 2)
 
+        # =================================================================
+        # 3. 훈련할 때와 똑같이 Time_of_Day를 빼고 5개 특성만 넘겨줍니다!
+        # =================================================================
         input_df = pd.DataFrame([{
             'Weather': mapped_weather,
             'Road_Surface': mapped_surface,
-            'Time_of_Day': mapped_time,
+            # 'Time_of_Day': mapped_time,  
             'Speed': speed,
+            'lux': lux,  
             'korea_fatality_weight': fatality_weight
         }])
 
-        # 3. 예측 결과 추출 (배열의 첫 번째 값만 쏙 빼냄)
+        # 4. 예측 결과 추출
         predicted_risk_str = str(model.predict(input_df)[0])
 
         response = {
@@ -75,7 +86,7 @@ def predict_risk():
         return jsonify(response), 200
 
     except Exception as e:
-        # 4. 서버 에러 발생 시 안전하게 JSON 반환
+        # 서버 에러 발생 시 안전하게 JSON 반환
         error_msg = traceback.format_exc()
         print(f"[예측 API 에러 발생]\n{error_msg}")
         return jsonify({

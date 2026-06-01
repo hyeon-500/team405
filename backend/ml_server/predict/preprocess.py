@@ -5,7 +5,15 @@ import numpy as np
 import glob
 import os
 
-def create_master_dataset(data_dir='./data'):
+# 1. 현재 파일(preprocess.py)이 있는 'predict' 폴더의 절대 경로를 구합니다.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# 2. 상위 폴더(ml_server)로 한 칸 올라간 뒤, 'dataset' 폴더를 가리키도록 설정합니다.
+# os.path.dirname(BASE_DIR)가 바로 'ml_server' 폴더를 의미합니다.
+DEFAULT_DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), 'dataset')
+
+# 3. 함수의 기본(default) 경로를 위에서 만든 완벽한 절대 경로로 지정합니다.
+def create_master_dataset(data_dir=DEFAULT_DATA_DIR):
     print(f"[{data_dir}] 폴더에서 데이터 로딩 및 벡터화 전처리를 시작합니다...")
     
     # =================================================================
@@ -139,23 +147,51 @@ def create_master_dataset(data_dir='./data'):
     df_master['Speed'] = [np.random.randint(low, high) for low, high in zip(low_bounds, high_bounds)]
 
     conditions = [
+        # 🔴 DANGER 조건 (아래 중 하나라도 걸리면 치명적 위험)
         (df_master['Weather'] == 'Fog') | 
         (df_master['Road_Surface'] == 'Icy') | 
         (df_master['injuries_fatal'] > 0) | 
-        (df_master.get('Severity') == 'High'),
+        (df_master.get('Severity') == 'High') |
+        ((df_master['Time_of_Day'] == 'Night') & (df_master['Weather'].isin(['Rain', 'Snow']))), # [추가] 밤인데 비나 눈이 오면 최악의 시야 + 미끄러움 = DANGER!
         
+        # 🟡 WARNING 조건 (아래 중 하나라도 걸리면 주의)
         (df_master['injuries_total'] > 0) | 
         (df_master['Weather'].isin(['Rain', 'Snow'])) | 
         (df_master['Road_Surface'] == 'Wet') | 
-        (df_master.get('Severity') == 'Moderate')
+        (df_master.get('Severity') == 'Moderate') |
+        (df_master['Time_of_Day'].isin(['Night', 'Dawn'])) # 🔥 [추가] 밤이나 새벽(어두운 상태)이면 기본적으로 WARNING을 깔고 감!
     ]
     choices = ['DANGER', 'WARNING']
     df_master['Risk_Level'] = np.select(conditions, choices, default='SAFE')
 
     # =================================================================
-    # 6단계: 사상자수/심각도 배제 및 최종 저장
+    # 6단계: 조도(lux) 데이터 가상 생성 및 병합
     # =================================================================
-    final_columns = ['Weather', 'Road_Surface', 'Time_of_Day', 'Speed', 'korea_fatality_weight', 'Risk_Level']
+    np.random.seed(42) # 난수 고정
+    size = len(df_master)
+
+    # 주야간(Time_of_Day)을 기준으로 현실적인 기본 조도(lux) 생성
+    lux_cond = [df_master['Time_of_Day'] == 'Daylight', 
+                df_master['Time_of_Day'] == 'Dawn', 
+                df_master['Time_of_Day'] == 'Night']
+    
+    # 낮: 1000~5000, 새벽/어스름: 50~400, 밤: 0~50
+    df_master['lux'] = np.select(lux_cond, 
+                                 [np.random.uniform(1000, 5000, size), 
+                                  np.random.uniform(50, 400, size), 
+                                  np.random.uniform(0, 50, size)], 
+                                 default=0)
+    
+    # 악천후 시 조도 감소 패널티 (낮이라도 비나 안개가 오면 어두워짐)
+    df_master.loc[df_master['Weather'].isin(['Fog', 'Rain', 'Snow']), 'lux'] *= 0.4
+
+    # 소수점 1자리로 깔끔하게 반올림
+    df_master['lux'] = np.round(df_master['lux'], 1)
+
+    # =================================================================
+    # 7단계: 기존 컬럼 + 조도(lux) 유지하여 최종 저장
+    # =================================================================
+    final_columns = ['Weather', 'Road_Surface', 'Time_of_Day', 'Speed', 'lux', 'korea_fatality_weight', 'Risk_Level']
     ai_master_dataset = df_master[final_columns].copy().dropna()
     
     output_file = os.path.join(data_dir, 'ai_master_dataset.csv')
@@ -164,6 +200,6 @@ def create_master_dataset(data_dir='./data'):
     
     return ai_master_dataset
 
-# 실행
 if __name__ == "__main__":
-    master_df = create_master_dataset(data_dir='./data')
+    # ✅ 괄호 안을 비우면, 위에서 정의한 DEFAULT_DATA_DIR가 자동으로 들어갑니다.
+    master_df = create_master_dataset()
