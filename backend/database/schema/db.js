@@ -1,13 +1,13 @@
 // =================================================================
-// 1. SQLite 데이터베이스 초기화 및 테이블 생성
+// 1. SQLite 데이터베이스 초기화 및 테이블 생성(기존에 app.js에 있던 코드를 분리시킴)
 // =================================================================
-const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./log/sensor_monitoring.db', (err) => {
+const sqlite3 = require('sqlite3').verbose();   // sqlite3 쓸거임
+const db = new sqlite3.Database('../sqlite/sensor_monitoring.db', (err) => {  // db 읽어
     if (err) console.error("DB 연결 실패:", err.message);
     else console.log("✓ SQLite 데이터베이스(sensor_monitoring.db) 연결 완료");
 });
 
-db.serialize(() => {
+db.serialize(() => {                                            // db 만들어
     // 센서 로그 테이블 생성 (모든 통신 기록)
     db.run(`CREATE TABLE IF NOT EXISTS sensor_logs (
         log_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,4 +34,4 @@ db.serialize(() => {
     )`);
 });
 
-module.exports = db;
+module.exports = db;   // 다른 파일이 자기를 읽을 수 있도록 함

@@ -1,4 +1,3 @@
-# predict.py
 from flask import jsonify
 import pandas as pd
 import pickle
@@ -7,7 +6,7 @@ import pickle
 # =========================================================
 # 머신러닝 모델 로드
 # =========================================================
-with open("./risk_model.pkl", "rb") as f:
+with open("../model/risk_model.pkl", "rb") as f:   # 파일 읽기
     model = pickle.load(f)
 
 
@@ -15,11 +14,9 @@ with open("./risk_model.pkl", "rb") as f:
 # 위험 점수 알고리즘
 # =========================================================
 def calculate_risk_score(speed, weather, surface):
-
     score = 0
-
     # 속도 기준
-    if speed >= 80:
+    if speed >= 80:   # 기준값은 임의로 생성되었으며 나중에 STM32 를 바탕으로 수정될 수 있음
         score += 4
     elif speed >= 60:
         score += 3
@@ -64,8 +61,7 @@ def classify_risk(score):
 # AI 위험도 예측 함수
 # =========================================================
 def predict_risk(sensor_data):
-
-    temp = sensor_data.get("temp")
+    temp = sensor_data.get("temp")      # STM32에서 넘어온 센서 데이터
     humidity = sensor_data.get("humidty")
     lux = sensor_data.get("lux")
     speed = sensor_data.get("speed")

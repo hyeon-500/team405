@@ -1,14 +1,14 @@
 // RestAPI 중의 POST, 비동기 통신 방식 중 하나인 axios.
 const axios = require('axios');
-const db = require('./db/db');
+const db = require('../../database/schema/db');    // axios.js가 돌아가기 위한 최소한의 모듈
 
 module.exports = (app, io, server) => {
 
     // ================================================================
     // 2. 센서 데이터 수신 API (ESP32/STM32 -> Node.js)
     // ================================================================
-    app.post('/api/sensor', async (req, res) => {
-
+    app.post('/api/sensor', async (req, res) => {                 // const : js 변수선언으로 실행되면 html 기준으로 변하지 않는 값
+                                                                 
         const { temp, humidity, lux, speed } = req.body;
 
         try {
@@ -72,7 +72,7 @@ module.exports = (app, io, server) => {
                         riskLevel === 'DANGER'
                     ) {
 
-                        let cause =
+                        let cause =                                    // let : js 변수선언으로 실행되면 html 기준으로 변하는 값. 즉 온도 기준으로 25도 > 30도와 chart 그래프들.
                             `${mapped.mapped_time}시간대 ` +
                             `${mapped.mapped_weather}/` +
                             `${mapped.mapped_surface} 상태에서 ` +
@@ -83,7 +83,7 @@ module.exports = (app, io, server) => {
                                 ? '치명적 위험! 결빙/가시거리 불량 구간입니다. 즉시 50km/h 이하로 크게 감속하세요!'
                                 : '주의 구간! 수막현상 위험이 있습니다. 서행하세요.';
 
-                        db.run(
+                        db.run(                                    
                             `
                             INSERT INTO alert_events
                             (
@@ -126,7 +126,7 @@ module.exports = (app, io, server) => {
                 }
             );
 
-            res.status(200).json({
+            res.status(200).json({                          // 네트워크 상태로 200대 또는 300대는 정상실행. 400대와 500대는 실행안됨
                 success: true,
                 message: 'AI 분석 완료 및 DB 저장 성공',
                 result: riskLevel
@@ -139,7 +139,7 @@ module.exports = (app, io, server) => {
                 error.message
             );
 
-            res.status(500).json({
+            res.status(500).json({                         // 400대와 500대는 실행안됨
                 success: false,
                 message: '서버 에러 발생'
             });

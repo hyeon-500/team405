@@ -10,7 +10,8 @@ app = Flask(__name__)
 # =========================================================
 # 위험도 예측 API
 # =========================================================
-@app.route('/predict_risk', methods=['POST'])
+
+@app.route('/predict_risk', methods=['POST'])    # localhost:5000/predict_risk, post(생성)
 def predict():
 
     try:
@@ -43,8 +44,8 @@ def predict():
 # =========================================================
 # Flask 서버 실행
 # =========================================================
-if __name__ == '__main__':
 
+if __name__ == '__main__':    # localhost:5000에서 실행
     app.run(
         host='0.0.0.0',
         port=5000,

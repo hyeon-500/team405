@@ -31,17 +31,19 @@ import pandas as pd
 import glob
 import os
 
+############################################################ 라이브러리 및 폰트 미리 설정
+
 # =========================
 # 파일 읽기
 # =========================
 
 try:
-    df = pd.read_csv("./dataset/ai_master_dataset.csv",encoding='cp949') # encoding='utf-8'
+    df = pd.read_csv("../dataset/ai_master_dataset.csv",encoding='cp949') # csv 읽기
 
 except Exception as e:
     print(f"오류 발생: {e}")
 
-X = df[
+X = df[                         # X(입력 특성)                   
     [
         'Weather',
         'Road_Surface',
@@ -51,11 +53,11 @@ X = df[
     ]
 ]
 
-y = df['Risk_Level']  # x, y 나누고
+y = df['Risk_Level']  # y(타겟)
 
 encoder = LabelEncoder()
 
-X['Weather'] = encoder.fit_transform(X['Weather'])
+X['Weather'] = encoder.fit_transform(X['Weather'])   # DecisonTree는 문자 그대로는 못 알아들음 > encoder로 변환(현재 문자는 weather, road_surface, time_of_day, risk_level)
 
 X['Road_Surface'] = encoder.fit_transform(
     X['Road_Surface']
@@ -65,10 +67,10 @@ X['Time_of_Day'] = encoder.fit_transform(
     X['Time_of_Day']
 )
 
-y = encoder.fit_transform(y)   # DecisionTree를 쓰려면 문자는 encode로 변환
+y = encoder.fit_transform(y)       # DecisionTree를 쓰려면 문자는 encode로 변환
 
 
-X_train, X_test, y_train, y_test = train_test_split(  # train/test 분리
+X_train, X_test, y_train, y_test = train_test_split(  # train/test 분리(기본으로 쓰이는 코드이며, 이 코드 고정으로 쓰임)
     X, y, test_size=0.2, random_state=42
 )
 
@@ -81,4 +83,5 @@ accuracy = model.score(X_test, y_test)
 print("정확도 :", accuracy)   # 정확도 확인
 
 
-joblib.dump(model, "./risk_model.pkl")   # 파일 변환
+joblib.dump(model, "../model/risk_model.pkl")   # 파일 변환
+

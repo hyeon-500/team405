@@ -5,4 +5,4 @@
 예 : 
 
       sqlite/
-      └── sensor.db  
+      └── sensor_monitoring.db (실제 DB가 아닌 임시 DB)
