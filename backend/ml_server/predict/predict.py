@@ -1,4 +1,3 @@
-from flask import jsonify
 import pandas as pd
 import pickle
 
@@ -6,36 +5,83 @@ import pickle
 # =========================================================
 # 머신러닝 모델 로드
 # =========================================================
-with open("../model/risk_model.pkl", "rb") as f:   # 파일 읽기
+with open("../model/risk_model.pkl", "rb") as f:   # csv 읽기
     model = pickle.load(f)
 
 
 # =========================================================
-# 위험 점수 알고리즘
+# 센서 데이터 기반 환경 분석
 # =========================================================
-def calculate_risk_score(speed, weather, surface):
+def analyze_environment(temp, humidity, lux):    # csv를 기반으로 분석
+
+    # 날씨 판단
+    if humidity >= 80:
+        weather = "RAIN"
+
+    elif lux <= 100:
+        weather = "FOG"
+
+    else:
+        weather = "CLEAR"
+
+    # 노면 상태 판단
+    if temp <= 0:
+        surface = "ICE"
+
+    elif humidity >= 70:
+        surface = "WET"
+
+    else:
+        surface = "DRY"
+
+    # 시간대 판단
+    if lux <= 50:
+        time_zone = "NIGHT"
+
+    else:
+        time_zone = "DAY"
+
+    return {
+        "weather": weather,
+        "surface": surface,
+        "time_zone": time_zone
+    }
+
+
+# =========================================================
+# 위험 점수 계산
+# =========================================================
+def calculate_risk_score(speed, weather, surface):  # csv를 기반으로 분석
+
     score = 0
-    # 속도 기준
-    if speed >= 80:   # 기준값은 임의로 생성되었으며 나중에 STM32 를 바탕으로 수정될 수 있음
+
+    # 속도 위험도
+    if speed >= 80:
         score += 4
+
     elif speed >= 60:
         score += 3
+
     elif speed >= 40:
         score += 2
+
     else:
         score += 1
 
-    # 날씨 기준
+    # 날씨 위험도
     if weather == "RAIN":
         score += 3
+
     elif weather == "FOG":
         score += 4
+
     elif weather == "SNOW":
         score += 5
 
-    # 노면 상태 기준
+    # 노면 위험도
     if surface == "WET":
         score += 3
+
     elif surface == "ICE":
         score += 5
 
@@ -58,47 +104,30 @@ def classify_risk(score):
 
 
 # =========================================================
-# AI 위험도 예측 함수
+# AI 위험 예측
 # =========================================================
 def predict_risk(sensor_data):
-    temp = sensor_data.get("temp")      # STM32에서 넘어온 센서 데이터
-    humidity = sensor_data.get("humidty")
-    lux = sensor_data.get("lux")
-    speed = sensor_data.get("speed")
+
+    # =====================================================
+    # STM32 센서 데이터 수신
+    # =====================================================
+    temp = sensor_data.get("temp", 0)
+
+    humidity = sensor_data.get("humidity", 0)
+
+    lux = sensor_data.get("lux", 0)
+
+    speed = sensor_data.get("speed", 0)
 
 
     # =====================================================
-    # 센서 데이터 기반 환경 매핑
+    # 환경 분석
     # =====================================================
-
-    # 날씨 판단
-    if humidity >= 80:
-        weather = "RAIN"
-
-    elif lux <= 100:
-        weather = "FOG"
-
-    else:
-        weather = "CLEAR"
-
-
-    # 노면 상태 판단
-    if temp <= 0:
-        surface = "ICE"
-
-    elif humidity >= 70:
-        surface = "WET"
-
-    else:
-        surface = "DRY"
-
-
-    # 시간대 판단
-    if lux <= 50:
-        time_zone = "NIGHT"
-
-    else:
-        time_zone = "DAY"
+    env = analyze_environment(
+        temp,
+        humidity,
+        lux
+    )
 
 
     # =====================================================
@@ -113,18 +142,18 @@ def predict_risk(sensor_data):
 
 
     # =====================================================
-    # RandomForest 위험 예측
+    # RandomForest 기반 위험 예측
     # =====================================================
-    prediction = model.predict(input_df)[0]
+    ai_prediction = model.predict(input_df)[0]
 
 
     # =====================================================
-    # 위험 점수 계산
+    # 규칙 기반 위험 점수 계산
     # =====================================================
     risk_score = calculate_risk_score(
         speed,
-        weather,
-        surface
+        env["weather"],
+        env["surface"]
     )
 
 
@@ -135,21 +164,37 @@ def predict_risk(sensor_data):
 
 
     # =====================================================
-    # 결과 반환
+    # 최종 결과 반환
     # =====================================================
     return {
 
-        "predicted_risk": str(prediction),
+        # AI 예측 결과
+        "ai_prediction": str(ai_prediction),
 
+        # 규칙 기반 위험 분석
         "risk_score": risk_score,
-
         "risk_level": risk_level,
 
-        "mapped_features": {
+        # 센서 기반 환경 분석 결과
+        "environment": {
 
-            "mapped_weather": weather,
-            "mapped_surface": surface,
-            "mapped_time": time_zone
+            "weather": env["weather"],
+
+            "surface": env["surface"],
+
+            "time_zone": env["time_zone"]
+        },
+
+        # 원본 센서 데이터
+        "sensor_data": {
+
+            "temp": temp,
+
+            "humidity": humidity,
+
+            "lux": lux,
+
+            "speed": speed
         }
     }
 

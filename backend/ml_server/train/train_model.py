@@ -57,7 +57,7 @@ y = df['Risk_Level']  # y(타겟)
 
 encoder = LabelEncoder()
 
-X['Weather'] = encoder.fit_transform(X['Weather'])   # # 머신러닝 모델은 문자열 데이터를 직접 처리하지 못하므로 인코딩 수행 > (현재 문자는 weather, road_surface, time_of_day, risk_level)
+X['Weather'] = encoder.fit_transform(X['Weather'])   # 머신러닝 모델은 문자열 데이터를 직접 처리하지 못하므로 인코딩 수행 > (현재 문자는 weather, road_surface, time_of_day, risk_level)
 
 X['Road_Surface'] = encoder.fit_transform(
     X['Road_Surface']
@@ -67,7 +67,7 @@ X['Time_of_Day'] = encoder.fit_transform(
     X['Time_of_Day']
 )
 
-y = encoder.fit_transform(y)       # DecisionTree를 쓰려면 문자는 encode로 변환
+y = encoder.fit_transform(y)       # RandomForest를 쓰려면 문자는 encode로 변환
 
 
 X_train, X_test, y_train, y_test = train_test_split(  # train/test 분리(기본으로 쓰이는 코드이며, 이 코드 고정으로 쓰임)
