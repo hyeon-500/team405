@@ -5,7 +5,7 @@ import pandas as pd
 import joblib
 from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier
 import matplotlib.pyplot as plt
 import matplotlib
 import platform, warnings
@@ -57,7 +57,7 @@ y = df['Risk_Level']  # y(타겟)
 
 encoder = LabelEncoder()
 
-X['Weather'] = encoder.fit_transform(X['Weather'])   # DecisonTree는 문자 그대로는 못 알아들음 > encoder로 변환(현재 문자는 weather, road_surface, time_of_day, risk_level)
+X['Weather'] = encoder.fit_transform(X['Weather'])   # # 머신러닝 모델은 문자열 데이터를 직접 처리하지 못하므로 인코딩 수행 > (현재 문자는 weather, road_surface, time_of_day, risk_level)
 
 X['Road_Surface'] = encoder.fit_transform(
     X['Road_Surface']
@@ -74,7 +74,7 @@ X_train, X_test, y_train, y_test = train_test_split(  # train/test 분리(기본
     X, y, test_size=0.2, random_state=42
 )
 
-model = DecisionTreeClassifier()   # 학습 모델이 DecisionTree
+model = RandomForestClassifier(n_estimators=100, max_depth=5, random_state=42)   # 학습 모델이 RandomForest
 
 model.fit(X_train, y_train)   # 머신러닝 학습
 
