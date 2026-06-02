@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../db/db'); // 비동기 DB 모듈
+const db = require('../db/sqlite'); // 비동기 DB 모듈
 
 // 최근 센서 로그 50개 조회 API
 router.get('/logs', async (req, res) => {
