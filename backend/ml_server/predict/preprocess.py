@@ -76,8 +76,9 @@ def create_master_dataset(data_dir=DEFAULT_DATA_DIR):
     df_master['Weather'] = np.select(
         [w_lower.str.contains('fog|smoke', na=False),
          w_lower.str.contains('rain|storm', na=False),
-         w_lower.str.contains('snow|sleet', na=False)],
-        ['Fog', 'Rain', 'Snow'], default='Clear'
+         w_lower.str.contains('snow|sleet', na=False),
+         w_lower.str.contains('cloud|overcast', na=False)], 
+        ['Fog', 'Rain', 'Snow', 'Cloudy'], default='Clear'
     )
     
     s_lower = df_master['Road_Condition'].astype(str).str.lower()
@@ -152,14 +153,14 @@ def create_master_dataset(data_dir=DEFAULT_DATA_DIR):
         (df_master['Road_Surface'] == 'Icy') | 
         (df_master['injuries_fatal'] > 0) | 
         (df_master.get('Severity') == 'High') |
-        ((df_master['Time_of_Day'] == 'Night') & (df_master['Weather'].isin(['Rain', 'Snow']))), # 밤인데 비나 눈이 오면 최악의 시야 + 미끄러움 = DANGER
+        ((df_master['Time_of_Day'] == 'Night') & (df_master['Weather'].isin(['Rain', 'Snow']))), 
         
         # WARNING 조건 (아래 중 하나라도 걸리면 주의)
         (df_master['injuries_total'] > 0) | 
-        (df_master['Weather'].isin(['Rain', 'Snow'])) | 
+        (df_master['Weather'].isin(['Rain', 'Snow', 'Cloudy'])) | 
         (df_master['Road_Surface'] == 'Wet') | 
         (df_master.get('Severity') == 'Moderate') |
-        (df_master['Time_of_Day'].isin(['Night', 'Dawn'])) # 밤이나 새벽(어두운 상태)이면 기본적으로 WARNING
+        (df_master['Time_of_Day'].isin(['Night', 'Dawn'])) 
     ]
     choices = ['DANGER', 'WARNING']
     df_master['Risk_Level'] = np.select(conditions, choices, default='SAFE')

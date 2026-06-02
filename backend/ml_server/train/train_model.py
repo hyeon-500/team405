@@ -51,7 +51,7 @@ def train_and_save_model(data_path=DEFAULT_DATA_PATH, model_path=DEFAULT_MODEL_P
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-    print("RandomForest 모델 학습을 시작합니다... (하이퍼파라미터 튜닝 적용)")
+    print("RandomForest 모델 학습을 시작합니다... ")
     model_pipeline.fit(X_train, y_train)
 
     y_pred = model_pipeline.predict(X_test)

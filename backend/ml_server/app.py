@@ -47,10 +47,19 @@ def predict_risk():
         elif lux < 400: mapped_time = 'Dawn'
         else: mapped_time = 'Daylight'
 
-        if humidity >= 80:
-            if temp <= 0: mapped_weather, mapped_surface = 'Snow', 'Icy'
-            else: mapped_weather, mapped_surface = 'Rain', 'Wet'
-        else: mapped_weather, mapped_surface = 'Clear', 'Dry'
+
+        # 기상 데이터 기반 날씨/노면 매핑 로직
+        if humidity >= 85:
+            if temp <= 0: 
+                mapped_weather, mapped_surface = 'Snow', 'Icy'
+            elif 0 < temp <= 10 and mapped_time in ['Dawn', 'Night']: 
+                mapped_weather, mapped_surface = 'Fog', 'Wet'
+            else: 
+                mapped_weather, mapped_surface = 'Rain', 'Wet'
+        elif 65 <= humidity < 85:
+            mapped_weather, mapped_surface = 'Cloudy', 'Dry'
+        else:
+            mapped_weather, mapped_surface = 'Clear', 'Dry'
 
         base_weight = BASE_FATALITY_RATES.get(mapped_weather, 1.24)
         surface_mult = 1.5 if mapped_surface == 'Icy' else (1.2 if mapped_surface == 'Wet' else 1.0)
