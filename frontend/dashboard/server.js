@@ -4,7 +4,7 @@ const { Server } = require('socket.io');
 const sqlite3 = require('sqlite3').verbose();
 const axios = require('axios');
 const cors = require('cors');
-const mqtt = require('mqtt'); // MQTT 패키지 추가
+const mqtt = require('mqtt');
 
 const app = express();
 const server = http.createServer(app);
@@ -17,11 +17,11 @@ app.get('/', (req, res) => {
 });
 
 // =================================================================
-// 1. SQLite 데이터베이스 초기화 및 테이블 생성
+// SQLite 데이터베이스 초기화 및 테이블 생성
 // =================================================================
 const db = new sqlite3.Database('./log/sensor_monitoring.db', (err) => {
     if (err) console.error("DB 연결 실패:", err.message);
-    else console.log("✓ SQLite 데이터베이스(sensor_monitoring.db) 연결 완료");
+    else console.log("SQLite 데이터베이스(sensor_monitoring.db) 연결 완료");
 });
 
 db.serialize(() => {
@@ -50,9 +50,9 @@ db.serialize(() => {
 });
 
 // =================================================================
-// 2. MQTT 브로커 연결 및 센서 데이터 수신 (HTTP API를 완벽히 대체)
+// MQTT 브로커 연결 및 센서 데이터 수신
 // =================================================================
-// (로컬 PC에 설치된 Mosquitto 브로커를 가리킵니다)
+// Mosquitto 브로커
 const MQTT_BROKER = 'mqtt://127.0.0.1:1883'; 
 const mqttClient = mqtt.connect(MQTT_BROKER);
 
@@ -60,8 +60,8 @@ mqttClient.on('connect', () => {
     console.log("✓ MQTT 브로커 연결 완료");
     // ESP32에서 JSON 전체 데이터를 쏘는 핵심 토픽만 구독합니다.
     mqttClient.subscribe('iot/nucleo/json', (err) => {
-        if (!err) console.log("📡 [iot/nucleo/json] 토픽 구독 완료. 실시간 수신 대기 중...");
-        else console.error("❌ MQTT 구독 에러:", err);
+        if (!err) console.log("[iot/nucleo/json] 토픽 구독 완료. 실시간 수신 대기 중...");
+        else console.error("MQTT 구독 에러:", err);
     });
 });
 
@@ -103,7 +103,7 @@ mqttClient.on('message', async (topic, message) => {
                         [currentLogId, riskLevel, cause, alertMessage]);
                 }
 
-                // 4) Socket.io를 통해 프론트엔드 대시보드로 실시간 데이터 방송
+                // Socket.io를 통해 프론트엔드 대시보드로 실시간 데이터 방송
                 const broadcastData = {
                     log_id: currentLogId,
                     raw: sensorData,
@@ -115,13 +115,13 @@ mqttClient.on('message', async (topic, message) => {
             });
 
         } catch (error) {
-            console.error("❌ 데이터 처리/Flask 연동 에러:", error.message);
+            console.error("데이터 처리/Flask 연동 에러:", error.message);
         }
     }
 });
 
 // =================================================================
-// 3. Socket.io 실시간 연결 관리
+// Socket.io 실시간 연결 관리
 // =================================================================
 io.on('connection', (socket) => {
     console.log(`[Socket.io] 새로운 대시보드 클라이언트 접속: ${socket.id}`);

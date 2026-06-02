@@ -4,12 +4,12 @@ from flask import Flask, request, jsonify
 import pandas as pd
 import joblib
 import os
-import traceback  # 에러 상세 추적용
+import traceback
 
 app = Flask(__name__)
 
 # =================================================================
-# 🛡️ 무적의 절대 경로 설정 (어디서 서버를 켜든 model 폴더를 정확히 추적합니다)
+# 절대 경로 설정
 # =================================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_PATH = os.path.join(BASE_DIR, 'model', 'risk_model.pkl')
@@ -18,19 +18,19 @@ MODEL_PATH = os.path.join(BASE_DIR, 'model', 'risk_model.pkl')
 model = None
 try:
     model = joblib.load(MODEL_PATH)
-    print(f"✓ AI 모델 로드 완료: {MODEL_PATH}")
+    print(f"AI 모델 로드 완료: {MODEL_PATH}")
 except Exception as e:
-    print(f"🚨 모델 로드 실패! 'train_model.py'를 먼저 실행해 주세요.\n에러: {e}")
+    print(f"모델 로드 실패! 'train_model.py'를 먼저 실행해 주세요.\n에러: {e}")
 
 BASE_FATALITY_RATES = {'Clear': 1.24, 'Rain': 1.64, 'Snow': 1.50, 'Fog': 9.90, 'Cloudy': 1.30}
 
 @app.route('/', methods=['GET'])
 def home():
-    return "<h1>KGM AI 관제 API 서버가 정상 가동 중입니다!</h1><p>STM32 센서 데이터는 POST 방식으로 '/predict_risk' 경로에 전송해주세요.</p>"
+    return "<h1>AI 관제 API 서버가 정상 가동 중입니다!</h1><p>STM32 센서 데이터는 POST 방식으로 '/predict_risk' 경로에 전송해주세요.</p>"
 
 @app.route('/predict_risk', methods=['POST'])
 def predict_risk():
-    # 1. 모델이 로드되지 않았을 경우 방어
+    # 모델이 로드되지 않았을 경우 에러
     if model is None:
         return jsonify({"success": False, "error": "AI 모델이 초기화되지 않았습니다. 관리자에게 문의하세요."}), 503
 
@@ -42,7 +42,7 @@ def predict_risk():
         lux = float(data.get('lux', 500.0))
         speed = int(data.get('speed', 60))
 
-        # 2. 센서 데이터 기반 매핑 로직
+        # 센서 데이터 기반 매핑 로직
         if lux < 10: mapped_time = 'Night'
         elif lux < 400: mapped_time = 'Dawn'
         else: mapped_time = 'Daylight'
@@ -58,7 +58,7 @@ def predict_risk():
         fatality_weight = round(base_weight * surface_mult * time_mult, 2)
 
         # =================================================================
-        # 3. 훈련할 때와 똑같이 Time_of_Day를 빼고 5개 특성만 넘겨줍니다!
+        # 조도 민감도 조정을 위해 Time_of_Day를 빼고 5개 특성을 넘김
         # =================================================================
         input_df = pd.DataFrame([{
             'Weather': mapped_weather,
@@ -86,7 +86,7 @@ def predict_risk():
         return jsonify(response), 200
 
     except Exception as e:
-        # 서버 에러 발생 시 안전하게 JSON 반환
+        # 서버 에러 발생 시 JSON 반환
         error_msg = traceback.format_exc()
         print(f"[예측 API 에러 발생]\n{error_msg}")
         return jsonify({

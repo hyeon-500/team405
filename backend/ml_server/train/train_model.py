@@ -10,7 +10,7 @@ from sklearn.preprocessing import OneHotEncoder, RobustScaler # ★ StandardScal
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import classification_report, accuracy_score
 
-# 무적의 폴더 분리형 절대 경로 설정
+# 폴더 분리형 절대 경로 설정
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
 ML_SERVER_DIR = os.path.dirname(BASE_DIR)             
 DEFAULT_DATA_PATH = os.path.join(ML_SERVER_DIR, 'dataset', 'ai_master_dataset.csv')

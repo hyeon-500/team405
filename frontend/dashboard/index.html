@@ -33,7 +33,7 @@
 <body>
 
     <div class="header">
-        <h1>🚗 실시간 AI 도로 위험도 관제 시스템</h1>
+        <h1>실시간 AI 도로 위험도 관제 시스템</h1>
         <p id="connection-status" style="color: blue;">[서버 연결 대기 중...]</p>
     </div>
 
@@ -73,7 +73,7 @@
     <script>
         const maxDataPoints = 15;
         
-        // 1. 차트 생성 함수
+        // 차트 생성 함수
         function createChart(canvasId, label1, color1, label2, color2) {
             const ctx = document.getElementById(canvasId).getContext('2d');
             return new Chart(ctx, {
@@ -97,11 +97,11 @@
             });
         }
 
-        // 2. 그래프 그리기 준비
+        // 그래프 그리기 준비
         const envChart = createChart('envChart', '온도 (℃)', '#ff6384', '습도 (%)', '#36a2eb');
         const drivingChart = createChart('drivingChart', '속도 (km/h)', '#ffce56', '조도 (Lux)', '#4bc0c0');
 
-        // 3. Socket.io 서버 연결
+        // Socket.io 서버 연결
         const socket = io('http://127.0.0.1:3000');
 
         socket.on('connect', () => {
@@ -114,7 +114,7 @@
             document.getElementById('connection-status').style.color = 'red';
         });
 
-        // 4. 데이터 수신 시 화면 업데이트
+        // 데이터 수신 시 화면 업데이트
         socket.on('sensor_update', (data) => {
             const timeLabel = new Date().toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
             
@@ -136,7 +136,7 @@
             updateChart(drivingChart, timeLabel, data.raw.speed, data.raw.lux);
         });
 
-        // 5. 그래프 업데이트 함수
+        // 그래프 업데이트 함수
         function updateChart(chart, label, data1, data2) {
             // 에러 방지용 안전 장치
             if (!chart || !chart.data || !chart.data.datasets) return;
