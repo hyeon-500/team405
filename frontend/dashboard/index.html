@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 AI 위험도 관제 대시보드</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <!-- Chart.js (그래프) & Socket.io (실시간 통신) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="http://127.0.0.1:3000/socket.io/socket.io.js"></script>
+    
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .card-container { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; }
+        .card { flex: 1; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
+        .card h3 { margin: 0 0 10px 0; color: #555; font-size: 16px; }
+        .card .value { font-size: 28px; font-weight: bold; color: #222; }
+        
+        .risk-card { transition: background-color 0.3s; color: white; }
+        .risk-card h3, .risk-card .value { color: white; }
+        
+        .chart-container { display: flex; gap: 20px; flex-wrap: wrap; }
+        .chart-box { flex: 1; min-width: 45%; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        
+        /* 위험도 색상 */
+        .SAFE { background-color: #28a745 !important; }
+        .WARNING { background-color: #ffc107 !important; }
+        .DANGER { background-color: #dc3545 !important; }
+        .DEFAULT { background-color: #6c757d !important; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>실시간 AI 도로 위험도 관제 시스템</h1>
+        <p id="connection-status" style="color: blue;">[서버 연결 대기 중...]</p>
+    </div>
+
+    <div class="card-container">
+        <div class="card">
+            <h3>온도 (℃)</h3>
+            <div class="value" id="val-temp">--</div>
+        </div>
+        <div class="card">
+            <h3>습도 (%)</h3>
+            <div class="value" id="val-humidity">--</div>
+        </div>
+        <div class="card">
+            <h3>조도 (Lux)</h3>
+            <div class="value" id="val-lux">--</div>
+        </div>
+        <div class="card">
+            <h3>주행 속도 (km/h)</h3>
+            <div class="value" id="val-speed">--</div>
+        </div>
+        <div class="card risk-card DEFAULT" id="val-risk-card">
+            <h3>AI 위험도 판별</h3>
+            <div class="value" id="val-risk">대기중</div>
+            <div style="font-size: 14px; margin-top: 5px;" id="val-mapped">--</div>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <div class="chart-box">
+            <canvas id="envChart"></canvas>
+        </div>
+        <div class="chart-box">
+            <canvas id="drivingChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const maxDataPoints = 15;
+        
+        // 차트 생성 함수
+        function createChart(canvasId, label1, color1, label2, color2) {
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            return new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [
+                        { label: label1, borderColor: color1, backgroundColor: color1, data: [], tension: 0.3, yAxisID: 'y' },
+                        { label: label2, borderColor: color2, backgroundColor: color2, data: [], tension: 0.3, yAxisID: 'y1' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { display: true, title: { display: true, text: '시간' } },
+                        y: { type: 'linear', display: true, position: 'left' },
+                        y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false } }
+                    },
+                    animation: { duration: 400 }
+                }
+            });
+        }
+
+        // 그래프 그리기 준비
+        const envChart = createChart('envChart', '온도 (℃)', '#ff6384', '습도 (%)', '#36a2eb');
+        const drivingChart = createChart('drivingChart', '속도 (km/h)', '#ffce56', '조도 (Lux)', '#4bc0c0');
+
+        // Socket.io 서버 연결
+        const socket = io('http://127.0.0.1:3000');
+
+        socket.on('connect', () => {
+            document.getElementById('connection-status').innerText = '🟢 [관제 서버 연결 완료] 센서 데이터를 기다립니다.';
+            document.getElementById('connection-status').style.color = 'green';
+        });
+
+        socket.on('disconnect', () => {
+            document.getElementById('connection-status').innerText = '🔴 [관제 서버 연결 끊김]';
+            document.getElementById('connection-status').style.color = 'red';
+        });
+
+        // 데이터 수신 시 화면 업데이트
+        socket.on('sensor_update', (data) => {
+            const timeLabel = new Date().toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            
+            // 상단 수치 변경
+            document.getElementById('val-temp').innerText = data.raw.temp;
+            document.getElementById('val-humidity').innerText = data.raw.humidity;
+            document.getElementById('val-lux').innerText = data.raw.lux;
+            document.getElementById('val-speed').innerText = data.raw.speed;
+            
+            // 위험도 카드 변경
+            const riskCard = document.getElementById('val-risk-card');
+            const riskLevel = data.risk_level;
+            document.getElementById('val-risk').innerText = riskLevel;
+            document.getElementById('val-mapped').innerText = `[${data.mapped.mapped_weather} / ${data.mapped.mapped_surface} / ${data.mapped.mapped_time}]`;
+            riskCard.className = `card risk-card ${riskLevel}`;
+
+            // 그래프 데이터 추가
+            updateChart(envChart, timeLabel, data.raw.temp, data.raw.humidity);
+            updateChart(drivingChart, timeLabel, data.raw.speed, data.raw.lux);
+        });
+
+        // 그래프 업데이트 함수
+        function updateChart(chart, label, data1, data2) {
+            // 에러 방지용 안전 장치
+            if (!chart || !chart.data || !chart.data.datasets) return;
+
+            // X축 시간 라벨 추가
+            chart.data.labels.push(label);
+            
+            // Y축 데이터 추가 (datasets[0]으로 인덱스 명시)
+            chart.data.datasets[0].data.push(data1); // 첫 번째 선 (온도 / 속도)
+            chart.data.datasets[1].data.push(data2); // 두 번째 선 (습도 / 조도)
+
+            // 최대 데이터 포인트(15개)를 넘으면 가장 오래된 데이터 삭제
+            if (chart.data.labels.length > maxDataPoints) {
+                chart.data.labels.shift();
+                chart.data.datasets[0].data.shift(); // 여기도 datasets[0]으로 수정
+                chart.data.datasets[1].data.shift();
+            }
+            
+            // 차트 다시 그리기
+            chart.update();
+        }
+    </script>
+</body>
+</html>
