@@ -1,29 +1,37 @@
 /* USER CODE BEGIN Header */
 /**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2026 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
+ ******************************************************************************
+ * @file           : main.c
+ * @brief          : Main program body
+ ******************************************************************************
+ * @attention
+ *
+ * Copyright (c) 2026 STMicroelectronics.
+ * All rights reserved.
+ *
+ * This software is licensed under terms that can be found in the LICENSE file
+ * in the root directory of this software component.
+ * If no LICENSE file comes with this software, it is provided AS-IS.
+ *
+ ******************************************************************************
+ */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "adc.h"
+#include "can.h"
+#include "i2c.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdio.h>    // sprintf 함수 사용을 위해 (JSON 묶기용)
+#include <string.h>   // strlen 함수 사용을 위해
+#include "bh1750.h"
+#include "mk_dht11.h"
+#include "i2c_lcd.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -44,7 +52,19 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
+// 센서 및 모듈 제어용 구조체 선언
+I2C_LCD_HandleTypeDef hlcd;
+dht11_t dht;
 
+// 센서 데이터 변수
+float temp = 0.0f;
+float humidity = 0.0f;
+float lux = 0.0f;
+int current_speed = 0;
+
+// JSON 통신 및 디버깅용 버퍼
+char tx_buffer[256];
+char debug_buffer[256];
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -87,19 +107,89 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_ADC1_Init();
+  MX_CAN1_Init();
+  MX_I2C1_Init();
   MX_USART2_UART_Init();
+  MX_USART6_UART_Init();
+  MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
-  /* USER CODE END 2 */
+  	// 1. BH1750 조도 센서 초기화 및 측정 모드 실행 (핵심!)
+  	BH1750_Init(&hi2c1);
+  	// 센서를 깨우고 '연속 고해상도 측정 모드'로 설정합니다.
+  	BH1750_SetMode(CONTINUOUS_HIGH_RES_MODE);
+
+  	HAL_Delay(100);
+
+  	// 2. I2C LCD 초기화
+  	hlcd.hi2c = &hi2c1;
+  	hlcd.address = 0x4E;
+  	lcd_init(&hlcd);
+  	lcd_puts(&hlcd, "KGM System On");
+
+  	// 3. DHT11 초기화
+  	init_dht11(&dht, &htim1, GPIOB, GPIO_PIN_0);
+
+  	HAL_Delay(1500);
+  	// lcd_clear(&hlcd);
+  	/* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  while (1)
-  {
+	while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  }
+		// 1. 온습도(DHT11) 읽기
+		readDHT11(&dht);
+		temp = (float) dht.temperature;
+		// 주의: 적용된 라이브러리 내부 변수명에 오타(humidty)가 반영되어 있습니다.
+		humidity = (float) dht.humidty;
+
+		// 2. 조도(BH1750) 읽기 (올바른 포인터 사용법 적용)
+		float temp_lux = 0.0f;
+		if (BH1750_ReadLight(&temp_lux) == BH1750_OK) {
+		    lux = temp_lux;
+		} else {
+		    // 통신이 실패하면 값을 강제로 -1로 만듭니다!
+		    lux = -1.0f;
+		}
+
+		// 3. 가상 속도(ADC 가변 저항) 읽기 (PA0 핀)
+		HAL_ADC_Start(&hadc1);
+		if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK) {
+			uint32_t adc_val = HAL_ADC_GetValue(&hadc1);
+			current_speed = (adc_val * 150) / 4095; // 0~150km/h로 매핑
+		}
+
+		// 4. LCD 디스플레이 업데이트
+		char lcd_buf[16];
+		// lcd_gotoxy(&hlcd, 0, 0); // 첫째 줄로 이동
+		sprintf(lcd_buf, "T:%02dC H:%02d%%", (int) temp, (int) humidity);
+		lcd_puts(&hlcd, lcd_buf);
+
+		// lcd_gotoxy(&hlcd, 0, 1); // 둘째 줄로 이동
+		sprintf(lcd_buf, "L:%04d S:%03d", (int) lux, current_speed);
+		lcd_puts(&hlcd, lcd_buf);
+
+		// 5. ESP32로 보낼 JSON 문자열 포장
+		sprintf(tx_buffer,
+				"\r\n\r\n{\"temp\":%.1f,\"humidity\":%.1f,\"lux\":%.1f,\"speed\":%d}\r\n",
+		        temp, humidity, lux, current_speed);
+
+		// 6. ESP32로 전송 (USART6)
+		HAL_UART_Transmit(&huart6, (uint8_t*) tx_buffer, strlen(tx_buffer),
+				100);
+
+		// 7. PC 모니터 출력 (디버깅용, USART2)
+		sprintf(debug_buffer, "[SEND] %s", tx_buffer);
+		HAL_UART_Transmit(&huart2, (uint8_t*) debug_buffer,
+				strlen(debug_buffer), 100);
+
+		// 8. 1초 대기
+		HAL_Delay(1000);
+	}
   /* USER CODE END 3 */
 }
 
@@ -125,9 +215,9 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 16;
-  RCC_OscInitStruct.PLL.PLLN = 336;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
+  RCC_OscInitStruct.PLL.PLLM = 8;
+  RCC_OscInitStruct.PLL.PLLN = 50;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
   RCC_OscInitStruct.PLL.PLLQ = 2;
   RCC_OscInitStruct.PLL.PLLR = 2;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
@@ -144,7 +234,7 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_1) != HAL_OK)
   {
     Error_Handler();
   }
@@ -161,11 +251,10 @@ void SystemClock_Config(void)
 void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
-  /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  while (1)
-  {
-  }
+	/* User can add his own implementation to report the HAL error return state */
+	__disable_irq();
+	while (1) {
+	}
   /* USER CODE END Error_Handler_Debug */
 }
 #ifdef USE_FULL_ASSERT
