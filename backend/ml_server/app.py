@@ -25,7 +25,7 @@ BASE_FATALITY_RATES = {'Clear': 1.24, 'Rain': 1.64, 'Snow': 1.50, 'Fog': 9.90, '
 def home():
     return "<h1>AI 관제 API 서버 동작 중 </h1><p>센서 데이터는 /predict_risk 엔드포인트로 POST 요청해 주세요.</p>"
 
-@app.route('/predict_risk', methods=['POST'])
+@app.route('/predict_risk', methods=['POST'])               # Node가 여기로 HTTP(REST API) 요청 보냄
 def predict_risk():
     if model is None:
         return jsonify({"success": False, "error": "AI 모델이 초기화되지 않았습니다. 서버 상태를 확인해 주세요."}), 503
@@ -88,7 +88,7 @@ def predict_risk():
             },
             "predicted_risk": predicted_risk_str
         }
-        return jsonify(response), 200
+        return jsonify(response), 200                       # 여기서 Node한테 위험도 반환
 
     except Exception as e:
         error_msg = traceback.format_exc()

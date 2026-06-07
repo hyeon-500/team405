@@ -1,8 +1,10 @@
+// Node.js가 필요할 때마다 호출하는 DB 관리자
+
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
 // DB 파일 경로 설정 및 연결
-const dbPath = path.join(__dirname, '../log/sensor_monitoring.db');
+const dbPath = path.join(__dirname,'db_files','sensor_monitoring.db'); // 실제 DB 저장되는곳 수정.
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error("DB 연결 오류:", err.message);

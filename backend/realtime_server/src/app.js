@@ -6,6 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
+const initWebsocket = require('./websocket/websocket'); 
 
 // 모듈 분리된 라우터 및 서비스 불러오기
 const apiRoutes = require('./routes/api');
@@ -31,22 +32,18 @@ app.get('/', (req, res) => {
 });
 
 
-// 대시보드 화면(index.html) 제공
-app.get('/', (req, res) => {
-    res.sendFile(path.join(__dirname, '../../../frontend/dashboard/index.html'));
-});
-
 // REST API 라우터 등록
 app.use('/api', apiRoutes);
 
-// Socket.io 클라이언트 연결 관리
-io.on('connection', (socket) => {
-    console.log(`[Socket] 대시보드 클라이언트 접속됨 (ID: ${socket.id})`);
+// Socket.io 클라이언트 연결 관리  
+initWebsocket(io);                                                     
+// io.on('connection', (socket) => {                                                    websocket.js 로 옮김
+//     console.log(`[Socket] 대시보드 클라이언트 접속됨 (ID: ${socket.id})`);
     
-    socket.on('disconnect', () => {
-        console.log(`[Socket] 클라이언트 접속 해제됨 (ID: ${socket.id})`);
-    });
-});
+//     socket.on('disconnect', () => {
+//         console.log(`[Socket] 클라이언트 접속 해제됨 (ID: ${socket.id})`);
+//     });
+// });
 
 // MQTT 서비스 및 백엔드 핵심 로직 실행
 mqttService(io);
