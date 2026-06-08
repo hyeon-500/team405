@@ -6,7 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const cors = require('cors');
 const path = require('path');
-const initWebsocket = require('./websocket/websocket'); 
+const {initWebsocket} = require('./websocket/websocket'); 
 
 // 모듈 분리된 라우터 및 서비스 불러오기
 const apiRoutes = require('./routes/api');
@@ -21,7 +21,7 @@ app.use(express.json());
 app.use(cors());
 
 // =================================================================
-// 🚨 [경로 수정 및 추가] 프론트엔드 자바스크립트/CSS 파일을 찾을 수 있도록 정적 경로 개통
+// [경로 수정 및 추가] 프론트엔드 자바스크립트/CSS 파일을 찾을 수 있도록 정적 경로 개통
 // =================================================================
 // __dirname(src) 기준 3칸 위(../../..)로 올라가서 frontend/dashboard 폴더를 통째로 서빙합니다.
 app.use(express.static(path.join(__dirname, '../../../frontend/dashboard')));

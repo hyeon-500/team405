@@ -114,26 +114,38 @@
             document.getElementById('connection-status').style.color = 'red';
         });
 
+
         // 데이터 수신 시 화면 업데이트
         socket.on('sensor_update', (data) => {
+            // 1. 데이터가 잘 들어오는지 F12 콘솔창에서 확인하기 위한 로그
+            console.log("수신된 데이터:", data); 
+
+            // 2. 파이썬(app.py)에서 보내는 진짜 키 이름으로 안전하게 꺼내기
+            const raw = data.raw_sensor_data;
+            const mapped = data.mapped_features;
+            
+            // 가끔 파이썬에서 "['SAFE']" 처럼 배열 기호가 섞여서 올 때를 대비한 텍스트 청소기
+            const cleanRiskLevel = String(data.predicted_risk).replace(/['\[\]]+/g, '');
+
             const timeLabel = new Date().toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
             
-            // 상단 수치 변경
-            document.getElementById('val-temp').innerText = data.raw.temp;
-            document.getElementById('val-humidity').innerText = data.raw.humidity;
-            document.getElementById('val-lux').innerText = data.raw.lux;
-            document.getElementById('val-speed').innerText = data.raw.speed;
+            // 상단 수치 변경 (speed 대신 current_speed 매핑!)
+            document.getElementById('val-temp').innerText = raw.temp;
+            document.getElementById('val-humidity').innerText = raw.humidity;
+            document.getElementById('val-lux').innerText = raw.lux;
+            document.getElementById('val-speed').innerText = raw.current_speed; 
             
             // 위험도 카드 변경
             const riskCard = document.getElementById('val-risk-card');
-            const riskLevel = data.risk_level;
-            document.getElementById('val-risk').innerText = riskLevel;
-            document.getElementById('val-mapped').innerText = `[${data.mapped.mapped_weather} / ${data.mapped.mapped_surface} / ${data.mapped.mapped_time}]`;
-            riskCard.className = `card risk-card ${riskLevel}`;
+            document.getElementById('val-risk').innerText = cleanRiskLevel;
+            document.getElementById('val-mapped').innerText = `[${mapped.mapped_weather} / ${mapped.mapped_surface} / ${mapped.mapped_time}]`;
+            
+            // 클래스 이름 변경 (SAFE, WARNING, DANGER 색상 적용)
+            riskCard.className = `card risk-card ${cleanRiskLevel}`;
 
             // 그래프 데이터 추가
-            updateChart(envChart, timeLabel, data.raw.temp, data.raw.humidity);
-            updateChart(drivingChart, timeLabel, data.raw.speed, data.raw.lux);
+            updateChart(envChart, timeLabel, raw.temp, raw.humidity);
+            updateChart(drivingChart, timeLabel, raw.current_speed, raw.lux);
         });
 
         // 그래프 업데이트 함수

@@ -28,7 +28,7 @@ module.exports = function(io) {
                 // AI 서버를 통한 위험도 예측                       -> AI 서버(app.py) 호출
                 const aiData = await apiService.getAiPrediction({ temp, humidity, lux, speed });  // 여기서 다음으로 봐야할 파일은 services/api_service.js
                 const mapped = aiData.mapped_features;                                       // app.py에서 반환한 값 여기 저장
-                const riskLevel = aiData.predicted_risk;                                     // app.py에서 반환한 값 여기 저장
+                const riskLevel = String(aiData.predicted_risk).replace(/['\[\]\s]+/g, '');      // app.py에서 반환한 값 여기 저장
 
                 // 위험도에 따른 하드웨어 제어 명령 역송신 (Downstream)
                 if (riskLevel === 'DANGER' || riskLevel === 'WARNING') {
@@ -52,16 +52,14 @@ module.exports = function(io) {
         
                 // 프론트엔드 실시간 렌더링을 위한 데이터 브로드캐스팅   (함수 websocket.js로 옮김)
 
-                websocket.broadcastSensorData(
-                    io,
-                    {
-                        log_id: currentLogId,
-                        raw: sensorData,
-                        mapped,
-                        risk_level: riskLevel,
-                        timestamp: new Date().toLocaleString()
-                    }
-                )
+                websocket.broadcastSensorData(io, {
+                    log_id: currentLogId,
+                    // 💡 파이썬(app.py)이 만들어준 이름 그대로 프론트엔드에 전달!
+                    raw_sensor_data: aiData.raw_sensor_data, 
+                    mapped_features: aiData.mapped_features,
+                    predicted_risk: aiData.predicted_risk,
+                    timestamp: new Date().toLocaleString()
+                });
 
             } catch (error) {
                 console.error("🚨 데이터 처리 중 오류 발생:\n", error);

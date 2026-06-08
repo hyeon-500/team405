@@ -11,15 +11,15 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
-    "axios": "^1.16.1",
     "@serialport/parser-readline": "^13.0.0",
+    "axios": "^1.16.1",
     "better-sqlite3": "^12.10.0",
     "cors": "^2.8.6",
     "express": "^5.2.1",
     "morgan": "^1.10.1",
     "mqtt": "^5.15.1",
     "serialport": "^13.0.0",
-    "sqlite3": "^6.0.1",
-    "socket.io": "^4.8.3"
+    "socket.io": "^4.8.3",
+    "sqlite3": "^6.0.1"
   }
 }
