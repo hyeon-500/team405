@@ -34,7 +34,7 @@ async function getRealtimeWeather(lat, lon) {
     try {
         const response = await axios.get(url, {
             params: {
-                serviceKey: decodeURIComponent(API_KEY),
+                authKey: API_KEY, 
                 numOfRows: 10,
                 pageNo: 1,
                 dataType: 'JSON',
@@ -42,6 +42,9 @@ async function getRealtimeWeather(lat, lon) {
                 base_time: base_time,
                 nx: nx,
                 ny: ny
+            },
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
             }
         });
 

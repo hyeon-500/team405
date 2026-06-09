@@ -1,14 +1,12 @@
-
-
+// log_service.js
 
 // 센서 로그 DB 저장
-
-
 
 const db = require('../../../database/sqlite/sqlite');
 
 // 센서 데이터 + AI 분석 결과 저장
 async function saveSensorLog(
+      vehicleId,  
       temp,
       humidity,
       lux,
@@ -17,9 +15,11 @@ async function saveSensorLog(
       riskLevel
 ) {
 
+      
       const insertLogSql = `
             INSERT INTO sensor_logs
             (
+                  vehicle_id, 
                   raw_temp,
                   raw_humidity,
                   raw_lux,
@@ -29,12 +29,13 @@ async function saveSensorLog(
                   mapped_time,
                   predicted_risk
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) 
       `;
 
       const result = await db.run(
             insertLogSql,
             [
+                  vehicleId,  
                   temp,
                   humidity,
                   lux,
@@ -50,5 +51,5 @@ async function saveSensorLog(
 }
 
 module.exports = {
-saveSensorLog
+      saveSensorLog
 };

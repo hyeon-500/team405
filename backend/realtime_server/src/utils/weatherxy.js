@@ -47,5 +47,5 @@ module.exports = { convertToKmaGrid };
 // 테스트 (기상청 가이드 공식 검증 예제)
 // 위도: 37.488201, 경도: 126.929810 입력 시 -> X=59, Y=125 출력
 // ==========================================
-const grid = convertToKmaGrid(37.488201, 126.929810);
-console.log(`변환된 기상청 격자 좌표: nx=${grid.nx}, ny=${grid.ny}`);
+//const grid = convertToKmaGrid(37.488201, 126.929810);
+//console.log(`변환된 기상청 격자 좌표: nx=${grid.nx}, ny=${grid.ny}`);

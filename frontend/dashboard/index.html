@@ -3,197 +3,227 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>실시간 AI 위험도 관제 대시보드</title>
+    <title>AI 기반 차량 환경 관제 시스템</title>
     <script src="/socket.io/socket.io.js"></script>
-    <!-- Chart.js (그래프) & Socket.io (실시간 통신) -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="http://127.0.0.1:3000/socket.io/socket.io.js"></script>
-    
     <style>
         body { font-family: 'Malgun Gothic', sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .card-container { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; }
-        .card { flex: 1; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }
-        .card h3 { margin: 0 0 10px 0; color: #555; font-size: 16px; }
-        .card .value { font-size: 28px; font-weight: bold; color: #222; }
+        header { background: #2c3e50; color: white; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .search-area input { padding: 8px; font-size: 16px; border-radius: 4px; border: none; }
+        .search-area button { padding: 8px 15px; font-size: 16px; border-radius: 4px; border: none; cursor: pointer; background: #3498db; color: white; font-weight: bold; }
+        .search-area button:hover { background: #2980b9; }
+
+        /* 전체 차량 뷰 격자 레이아웃 */
+        #all-vehicles-view { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 20px; }
+        .vehicle-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 200px; text-align: center; }
+        .vehicle-card h3 { margin: 0 0 10px 0; color: #333; }
+        .speed-text { font-size: 24px; font-weight: bold; color: #2c3e50; }
         
-        .risk-card { transition: background-color 0.3s; color: white; }
-        .risk-card h3, .risk-card .value { color: white; }
-        
-        .chart-container { display: flex; gap: 20px; flex-wrap: wrap; }
-        .chart-box { flex: 1; min-width: 45%; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        
-        /* 위험도 색상 */
-        .SAFE { background-color: #28a745 !important; }
-        .WARNING { background-color: #ffc107 !important; }
-        .DANGER { background-color: #dc3545 !important; }
-        .DEFAULT { background-color: #6c757d !important; }
+        /* 위험도 색상 라벨 */
+        .risk-SAFE { color: #27ae60; font-weight: bold; }
+        .risk-WARNING { color: #f39c12; font-weight: bold; }
+        .risk-DANGER { color: #c0392b; font-weight: bold; animation: blink 1s infinite; }
+
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        /* 개별 차량 뷰 (초기엔 숨김) */
+        #single-vehicle-view { display: none; background: white; padding: 20px; border-radius: 8px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .info-panel { text-align: center; margin-bottom: 20px; padding: 15px; background: #ecf0f1; border-radius: 8px; }
+        .info-panel p { margin: 5px 0; font-size: 16px; }
+        .chart-container { width: 100%; max-width: 900px; margin: 0 auto; }
+
+        /* DANGER 팝업 스타일 */
+        #danger-popup { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #e74c3c; color: white; padding: 15px 30px; border-radius: 8px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 1000; }
     </style>
-    <!-- 대시보드 상단 컨트롤 패널 영역 -->
-    <div class="control-panel">
-    <label for="vehicleSearch">차량 번호 검색:</label>
-    <input type="text" id="vehicleSearch" placeholder="(미입력시 전체보기)">
-    <button onclick="applyVehicleFilter()">관제 시작</button>
-    <span id="currentWatching">현재 관제 중: <b>[전체 차량]</b></span>
-</div>
 </head>
 <body>
 
-    <div class="header">
-        <h1>실시간 AI 도로 위험도 관제 시스템</h1>
-        <p id="connection-status" style="color: blue;">[서버 연결 대기 중...]</p>
+    <!-- DANGER 발생 시 띄울 팝업 박스 -->
+    <div id="danger-popup">🚨 [차량 <span id="danger-vid"></span>] 치명적 위험(DANGER) 감지! 즉시 확인 요망!</div>
+
+    <header>
+        <h2>🚗 통합 관제 대시보드</h2>
+        <div class="search-area">
+            <input type="text" id="searchInput" placeholder="차량 번호 입력 (예: 1234)">
+            <button onclick="searchVehicle()">검색</button>
+            <button onclick="showAllVehicles()" style="background: #e67e22;">전체 보기</button>
+        </div>
+    </header>
+
+    <!-- 1. 전체 차량 보기 영역 -->
+    <div id="all-vehicles-view">
+        <!-- 차량 카드가 동적으로 추가됩니다. -->
     </div>
 
-    <div class="card-container">
-        <div class="card">
-            <h3>온도 (℃)</h3>
-            <div class="value" id="val-temp">--</div>
+    <!-- 2. 개별 차량 상세 보기 영역 -->
+    <div id="single-vehicle-view">
+        <h2 id="single-title" style="text-align: center;">차량 상세 정보</h2>
+        
+        <!-- 💡 새롭게 추가된 상세 관제 패널 (날씨, 위험도, 안내 메시지) -->
+        <div class="info-panel">
+            <h2>현재 위험도: <span id="single-risk">-</span></h2>
+            <p><strong>☁️ 현재 환경:</strong> <span id="single-weather">-</span></p>
+            <p><strong>📢 관제 안내:</strong> <span id="single-alert" style="font-weight:bold;">-</span></p>
         </div>
-        <div class="card">
-            <h3>습도 (%)</h3>
-            <div class="value" id="val-humidity">--</div>
-        </div>
-        <div class="card">
-            <h3>조도 (Lux)</h3>
-            <div class="value" id="val-lux">--</div>
-        </div>
-        <div class="card">
-            <h3>주행 속도 (km/h)</h3>
-            <div class="value" id="val-speed">--</div>
-        </div>
-        <div class="card risk-card DEFAULT" id="val-risk-card">
-            <h3>AI 위험도 판별</h3>
-            <div class="value" id="val-risk">대기중</div>
-            <div style="font-size: 14px; margin-top: 5px;" id="val-mapped">--</div>
-        </div>
-    </div>
 
-    <div class="chart-container">
-        <div class="chart-box">
-            <canvas id="envChart"></canvas>
-        </div>
-        <div class="chart-box">
-            <canvas id="drivingChart"></canvas>
+        <div class="chart-container">
+            <canvas id="sensorChart"></canvas>
         </div>
     </div>
 
     <script>
-        const maxDataPoints = 15;
-        
-        // 차트 생성 함수
-        function createChart(canvasId, label1, color1, label2, color2) {
-            const ctx = document.getElementById(canvasId).getContext('2d');
-            return new Chart(ctx, {
+        const socket = io();
+        let currentMode = 'ALL'; 
+        let chartInstance = null; 
+
+        // 💡 [수정] 4개의 센서 데이터를 모두 표시하도록 차트 초기화 함수 개편
+        function initChart() {
+            const ctx = document.getElementById('sensorChart').getContext('2d');
+            if(chartInstance) chartInstance.destroy();
+            chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: [],
+                    labels: [], // 시간 라벨
                     datasets: [
-                        { label: label1, borderColor: color1, backgroundColor: color1, data: [], tension: 0.3, yAxisID: 'y' },
-                        { label: label2, borderColor: color2, backgroundColor: color2, data: [], tension: 0.3, yAxisID: 'y1' }
+                        { label: '속도 (km/h)', borderColor: '#3498db', data: [], fill: false, yAxisID: 'y' },
+                        { label: '온도 (℃)', borderColor: '#e74c3c', data: [], fill: false, yAxisID: 'y' },
+                        { label: '습도 (%)', borderColor: '#2ecc71', data: [], fill: false, yAxisID: 'y' },
+                        // 조도는 1000단위가 넘어갈 수 있으므로 우측의 별도 축(y1)을 사용하도록 설정
+                        { label: '조도 (lux)', borderColor: '#f39c12', data: [], fill: false, yAxisID: 'y1' }
                     ]
                 },
-                options: {
-                    responsive: true,
+                options: { 
+                    responsive: true, 
+                    animation: false,
                     scales: {
-                        x: { display: true, title: { display: true, text: '시간' } },
                         y: { type: 'linear', display: true, position: 'left' },
                         y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false } }
-                    },
-                    animation: { duration: 400 }
+                    }
                 }
             });
         }
 
-        // 그래프 그리기 준비
-        const envChart = createChart('envChart', '온도 (℃)', '#ff6384', '습도 (%)', '#36a2eb');
-        const drivingChart = createChart('drivingChart', '속도 (km/h)', '#ffce56', '조도 (Lux)', '#4bc0c0');
-
-        // Socket.io 서버 연결
-        const socket = io('http://127.0.0.1:3000');
-
-        socket.on('connect', () => {
-            document.getElementById('connection-status').innerText = '🟢 [관제 서버 연결 완료] 센서 데이터를 기다립니다.';
-            document.getElementById('connection-status').style.color = 'green';
-        });
-
-        socket.on('disconnect', () => {
-            document.getElementById('connection-status').innerText = '🔴 [관제 서버 연결 끊김]';
-            document.getElementById('connection-status').style.color = 'red';
-        });
-
-
-        // 데이터 수신 시 화면 업데이트
-        socket.on('sensor_update', (data) => {
-            // 1. 데이터가 잘 들어오는지 F12 콘솔창에서 확인하기 위한 로그
-            console.log("수신된 데이터:", data); 
-
-            // 2. 파이썬(app.py)에서 보내는 진짜 키 이름으로 안전하게 꺼내기
-            const raw = data.raw_sensor_data;
-            const mapped = data.mapped_features;
-            
-            // 가끔 파이썬에서 "['SAFE']" 처럼 배열 기호가 섞여서 올 때를 대비한 텍스트 청소기
-            const cleanRiskLevel = String(data.predicted_risk).replace(/['\[\]]+/g, '');
-
-            const timeLabel = new Date().toLocaleTimeString('ko-KR', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
-            
-            // 상단 수치 변경 (speed 대신 current_speed 매핑!)
-            document.getElementById('val-temp').innerText = raw.temp;
-            document.getElementById('val-humidity').innerText = raw.humidity;
-            document.getElementById('val-lux').innerText = raw.lux;
-            document.getElementById('val-speed').innerText = raw.current_speed; 
-            
-            // 위험도 카드 변경
-            const riskCard = document.getElementById('val-risk-card');
-            document.getElementById('val-risk').innerText = cleanRiskLevel;
-            document.getElementById('val-mapped').innerText = `[${mapped.mapped_weather} / ${mapped.mapped_surface} / ${mapped.mapped_time}]`;
-            
-            // 클래스 이름 변경 (SAFE, WARNING, DANGER 색상 적용)
-            riskCard.className = `card risk-card ${cleanRiskLevel}`;
-
-            // 그래프 데이터 추가
-            updateChart(envChart, timeLabel, raw.temp, raw.humidity);
-            updateChart(drivingChart, timeLabel, raw.current_speed, raw.lux);
-        });
-
-        // 그래프 업데이트 함수
-        function updateChart(chart, label, data1, data2) {
-            // 에러 방지용 안전 장치
-            if (!chart || !chart.data || !chart.data.datasets) return;
-
-            // X축 시간 라벨 추가
-            chart.data.labels.push(label);
-            
-            // Y축 데이터 추가 (datasets[0]으로 인덱스 명시)
-            chart.data.datasets[0].data.push(data1); // 첫 번째 선 (온도 / 속도)
-            chart.data.datasets[1].data.push(data2); // 두 번째 선 (습도 / 조도)
-
-            // 최대 데이터 포인트(15개)를 넘으면 가장 오래된 데이터 삭제
-            if (chart.data.labels.length > maxDataPoints) {
-                chart.data.labels.shift();
-                chart.data.datasets[0].data.shift(); // 여기도 datasets[0]으로 수정
-                chart.data.datasets[1].data.shift();
+        function searchVehicle() {
+            const vid = document.getElementById('searchInput').value.trim();
+            if (!vid) {
+                alert("차량 번호를 입력해주세요.");
+                return;
             }
+            currentMode = 'SINGLE';
+            document.getElementById('all-vehicles-view').style.display = 'none';
+            document.getElementById('single-vehicle-view').style.display = 'block';
+            document.getElementById('single-title').innerText = `[${vid}]번 차량 상세 관제`;
             
-            // 차트 다시 그리기
-            chart.update();
+            // 초기화
+            document.getElementById('single-risk').innerText = "-";
+            document.getElementById('single-weather').innerText = "-";
+            document.getElementById('single-alert').innerText = "-";
+            initChart();
+
+            socket.emit('subscribe_vehicle', vid); 
         }
 
-        function applyVehicleFilter() {
-            targetVehicleId = document.getElementById('vehicleSearch').value.trim();
-            const displaySpan = document.getElementById('currentWatching');
-    
-            if (targetVehicleId === "") {
-                displaySpan.innerHTML = "현재 관제 중: <b>[전체 차량]</b>";
-            } else {
-                displaySpan.innerHTML = `현재 관제 중: <b>[${targetVehicleId}]</b>`;
+        function showAllVehicles() {
+            currentMode = 'ALL';
+            document.getElementById('searchInput').value = '';
+            document.getElementById('all-vehicles-view').style.display = 'flex';
+            document.getElementById('single-vehicle-view').style.display = 'none';
+            socket.emit('subscribe_vehicle', ''); 
+        }
+
+        socket.on('sensor_update', (data) => {
+            const vid = data.vehicle_id;
+            const risk = data.predicted_risk;
+            const speed = data.raw_sensor_data.current_speed;
+
+            if (currentMode === 'ALL') {
+                updateAllVehiclesView(vid, risk, speed);
+            } else if (currentMode === 'SINGLE') {
+                updateSingleVehicleView(data);
             }
-    
-            // 서버의 websocket.js에게 방(Room)을 바꿔달라고 요청!
-            socket.emit('subscribe_vehicle', targetVehicleId);
-    
-            // 기존 차트 초기화
-            clearChartsAndLogs(); 
-}
+        });
+
+        function updateAllVehiclesView(vid, risk, speed) {
+            const container = document.getElementById('all-vehicles-view');
+            let card = document.getElementById('card-' + vid);
+
+            if (!card) {
+                card = document.createElement('div');
+                card.className = 'vehicle-card';
+                card.id = 'card-' + vid;
+                card.innerHTML = `
+                    <h3>차량 ID: ${vid}</h3>
+                    <div class="speed-text"><span class="speed-val">0</span> km/h</div>
+                    <div class="risk-text">위험도: <span class="risk-val"></span></div>
+                `;
+                container.appendChild(card);
+            }
+            card.querySelector('.speed-val').innerText = speed;
+            card.querySelector('.risk-val').className = `risk-val risk-${risk}`;
+            card.querySelector('.risk-val').innerText = risk;
+
+            if (risk === 'DANGER') {
+                const dangerPopup = document.getElementById('danger-popup');
+                document.getElementById('danger-vid').innerText = vid;
+                dangerPopup.style.display = 'block';
+                setTimeout(() => { dangerPopup.style.display = 'none'; }, 3000);
+            }
+        }
+
+        // 💡 [수정] 안내 메시지, 날씨, 4종 그래프 데이터 동적 업데이트 완벽 적용
+        function updateSingleVehicleView(data) {
+            const risk = data.predicted_risk;
+            const raw = data.raw_sensor_data;
+            const mapped = data.mapped_features;
+            const time = new Date().toLocaleTimeString();
+
+            // 1. 위험도 텍스트 갱신
+            const riskSpan = document.getElementById('single-risk');
+            riskSpan.className = `risk-${risk}`;
+            riskSpan.innerText = risk;
+
+            // 2. 날씨 및 시간대 텍스트 갱신 (AI 서버에서 맵핑된 데이터)
+            document.getElementById('single-weather').innerText = 
+                `기상: ${mapped.mapped_weather} / 노면: ${mapped.mapped_surface} / 시간대: ${mapped.mapped_time}`;
+
+            // 3. 위험도 기반 안내 메시지 갱신 (경고 테이블 로직과 연동)
+            const alertSpan = document.getElementById('single-alert');
+            if (risk === 'DANGER') {
+                alertSpan.innerText = "치명적 위험! 즉시 50km/h 이하로 크게 감속하세요!";
+                alertSpan.style.color = "#c0392b";
+            } else if (risk === 'WARNING') {
+                alertSpan.innerText = "주의 구간! 서행하세요.";
+                alertSpan.style.color = "#f39c12";
+            } else {
+                alertSpan.innerText = "안전 운행 구간입니다.";
+                alertSpan.style.color = "#27ae60";
+            }
+
+            // 4. 차트 배열 인덱스 버그 수정 및 데이터 4종 Push
+             const labels = chartInstance.data.labels;
+            const speedData = chartInstance.data.datasets.data; // 0번째: 속도
+            const tempData = chartInstance.data.datasets[1].data;  // 1번째: 온도
+            const humData = chartInstance.data.datasets[2].data;   // 2번째: 습도
+            const luxData = chartInstance.data.datasets[3].data;   // 3번째: 조도
+
+            labels.push(time);
+            speedData.push(raw.current_speed);
+            tempData.push(raw.temp);
+            humData.push(raw.humidity);
+            luxData.push(raw.lux);
+
+            // 데이터가 15개가 넘어가면 가장 오래된 앞부분 삭제하여 꺾은선 이동 효과
+            if (labels.length > 15) {
+                labels.shift();
+                speedData.shift();
+                tempData.shift();
+                humData.shift();
+                luxData.shift();
+            }
+            chartInstance.update();
+        }
+
+        window.onload = () => { showAllVehicles(); };
     </script>
 </body>
 </html>

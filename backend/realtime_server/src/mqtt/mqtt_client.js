@@ -1,4 +1,5 @@
 const mqtt = require('mqtt');
+
 // 분리된 서비스 모듈 불러오기
 const apiService = require('../services/ai_service');
 const logService = require('../services/log_service');
@@ -12,21 +13,15 @@ module.exports = function(io) {
 
     mqttClient.on('connect', () => {
         console.log("MQTT 브로커 접속 성공");
-        
-        // 다중 차량 통신 지원: 특정 토픽이 아닌 와일드카드(+) 사용
         mqttClient.subscribe('iot/+/json');            
-        //mqttClient.subscribe('iot/nucleo/json'); // 기존 단일 토픽도 하위 호환성 
     });
 
     mqttClient.on('message', async (topic, message) => {    
-        // 수신 토픽이 json으로 끝나는 데이터만 처리
         if (topic.endsWith('json')) {
             try {
                 const rawData = message.toString().trim();
-                
-                // 센서 데이터 파싱 및 STM32의 차량 고유번호(vid) 추출
                 const sensorData = JSON.parse(rawData);
-                const { vid, temp, humidity, lux, speed, lat, lon } = sensorData;
+                const { vid, lat, lon, temp, humidity, lux, speed } = sensorData;
                 
                 const currentVehicle = vid || 'UNKNOWN_CAR';
                 console.log(`\n[수신] 차량ID: ${currentVehicle} | 토픽: ${topic}`);
@@ -38,13 +33,17 @@ module.exports = function(io) {
                 }
                 const finalTemp = realWeather ? realWeather.temp : temp;
                 const finalHumidity = realWeather ? realWeather.humidity : humidity;
+                
+                // 💡 [수정 추가] 기상청 강수 형태(PTY) 변수 추출 (통신 실패 시 기본값 0: 강수없음)
+                const finalRainType = realWeather ? realWeather.rainType : 0; 
 
                 // AI 모델 예측 (차량 환경 데이터 분석)
                 const aiData = await apiService.getAiPrediction({ 
                     temp: finalTemp, 
                     humidity: finalHumidity, 
                     lux: lux, 
-                    speed: speed 
+                    speed: speed,
+                    rainType: finalRainType // 💡 [수정 추가] AI 서버로 강수 형태 전송
                 });
                 
                 const mapped = aiData.mapped_features;

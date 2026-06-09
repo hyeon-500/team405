@@ -1,10 +1,11 @@
+// sqlite.js
 // Node.js가 필요할 때마다 호출하는 DB 관리자
 
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
 // DB 파일 경로 설정 및 연결
-const dbPath = path.join(__dirname,'db_files','sensor_monitoring.db'); // 실제 DB 저장되는곳 수정.
+const dbPath = path.join(__dirname, 'db_files', 'sensor_monitoring.db'); 
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error("DB 연결 오류:", err.message);
@@ -15,10 +16,11 @@ const db = new sqlite3.Database(dbPath, (err) => {
 
 // 테이블 초기화
 db.serialize(() => {
-    // 센서 원본 및 AI 분석 결과 저장용 테이블
+    // 센서 원본 및 AI 분석 결과 저장용 테이블에 차량 번호(vehicle_id) 추가
     db.run(`CREATE TABLE IF NOT EXISTS sensor_logs (
         log_id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp DATETIME DEFAULT (datetime('now', 'localtime')),
+        vehicle_id TEXT NOT NULL, 
         raw_temp REAL NOT NULL,
         raw_humidity REAL NOT NULL,
         raw_lux REAL NOT NULL,
@@ -29,11 +31,12 @@ db.serialize(() => {
         predicted_risk TEXT
     )`);
 
-    // 위험 상태(WARNING/DANGER) 발생 시 알림 이력 저장용 테이블
+    // 알림 이력 저장용 테이블에도 차량 번호(vehicle_id) 추가
     db.run(`CREATE TABLE IF NOT EXISTS alert_events (
         event_id INTEGER PRIMARY KEY AUTOINCREMENT,
         timestamp DATETIME DEFAULT (datetime('now', 'localtime')),
         log_id INTEGER,
+        vehicle_id TEXT NOT NULL,
         risk_level TEXT NOT NULL,
         event_cause TEXT NOT NULL,
         alert_message TEXT NOT NULL,

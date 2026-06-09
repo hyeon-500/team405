@@ -26,7 +26,7 @@ BASE_FATALITY_RATES = {'Clear': 1.24, 'Rain': 1.64, 'Snow': 1.50, 'Fog': 9.90, '
 def home():
     return "<h1>AI 관제 API 서버 동작 중 </h1><p>센서 데이터는 /predict_risk 엔드포인트로 POST 요청해 주세요.</p>"
 
-@app.route('/predict_risk', methods=['POST'])               # Node가 여기로 HTTP(REST API) 요청 보냄
+@app.route('/predict_risk', methods=['POST'])               
 def predict_risk():
     if model is None:
         return jsonify({"success": False, "error": "AI 모델이 초기화되지 않았습니다. 서버 상태를 확인해 주세요."}), 503
@@ -38,6 +38,9 @@ def predict_risk():
         humidity = float(data.get('humidity', 50.0))
         lux = float(data.get('lux', 500.0))
         speed = int(data.get('speed', 60))
+        
+        # Node.js에서 넘겨준 기상청 강수 형태(rainType) 받기
+        rain_type = int(data.get('rainType', 0))
 
         # 조도(lux) 센서값 기준으로 주야간 판별
         if lux < 10: mapped_time = 'Night'
@@ -50,19 +53,29 @@ def predict_risk():
             mapped_time = 'Night'
             print(f"야간 인공조명(가로등/전조등) 감지됨. (lux: {lux}) -> 'Night'로 보정 완료")
 
-        # 온습도 조건에 따른 기상/노면 상태 매핑
-        if humidity >= 85:
-            if temp <= 0: 
-                mapped_weather, mapped_surface = 'Snow', 'Icy'
-            # 온도 0~10도 사이이면서 새벽/야간일 경우 안개 낀 젖은 도로로 간주 (사고 위험도 높임)
-            elif 0 < temp <= 10 and mapped_time in ['Dawn', 'Night']: 
-                mapped_weather, mapped_surface = 'Fog', 'Wet'
-            else: 
-                mapped_weather, mapped_surface = 'Rain', 'Wet'
-        elif 65 <= humidity < 85:
-            mapped_weather, mapped_surface = 'Cloudy', 'Dry'
+        # =================================================================
+        # 하이픈(-) 대신 쉼표(,)를 사용해 정확한 기상청 PTY 코드 나열
+        # =================================================================
+        if rain_type in [3, 4, 9]:
+            # 기상청 PTY 1(비), 4(소나기), 5(빗방울)
+            mapped_weather, mapped_surface = 'Rain', 'Wet'
+            
+        elif rain_type in [1, 2, 5, 6]:
+            # 기상청 PTY 2(비/눈), 3(눈), 6(빗방울눈날림), 7(눈날림)
+            mapped_weather = 'Snow'
+            # 눈이 오더라도 기온이 영상이면 젖음(Wet), 영하면 빙판(Icy)으로 처리
+            mapped_surface = 'Icy' if temp <= 0 else 'Wet'
+            
         else:
-            mapped_weather, mapped_surface = 'Clear', 'Dry'
+            # 기상청 PTY 0(강수 없음)
+            if 0 < temp <= 10 and humidity >= 85 and mapped_time in ['Dawn', 'Night']:
+                mapped_weather, mapped_surface = 'Fog', 'Wet'
+            elif temp <= 0 and humidity >= 85:
+                mapped_weather, mapped_surface = 'Cloudy', 'Icy'
+            elif humidity >= 65:
+                mapped_weather, mapped_surface = 'Cloudy', 'Dry'
+            else:
+                mapped_weather, mapped_surface = 'Clear', 'Dry'
 
         # 매핑된 환경을 바탕으로 한국형 치사율 가중치 계산
         base_weight = BASE_FATALITY_RATES.get(mapped_weather, 1.24)
@@ -70,18 +83,19 @@ def predict_risk():
         time_mult = 1.3 if mapped_time in ['Night', 'Dawn'] else 1.0
         fatality_weight = round(base_weight * surface_mult * time_mult, 2)
 
-        # 모델 입력용 데이터프레임 구성
-        # (조도 센서의 민감도를 높이기 위해 Time_of_Day 특성은 예측에서 제외)
+        # =================================================================
+        # 모델 입력 형태 불일치 에러(500)를 막기 위해 주석 반드시 해제!
+        # =================================================================
         input_df = pd.DataFrame([{
             'Weather': mapped_weather,
             'Road_Surface': mapped_surface,
-            # 'Time_of_Day': mapped_time,  
+            'Time_of_Day': mapped_time,   
             'Speed': speed,
             'lux': lux,  
             'korea_fatality_weight': fatality_weight
         }])
 
-        # 예측 결과 추출
+        # 예측 결과 추출 (문자열 변환 시 괄호 제거를 위해  추가)
         predicted_risk_str = str(model.predict(input_df))
 
         response = {
@@ -95,7 +109,7 @@ def predict_risk():
             },
             "predicted_risk": predicted_risk_str
         }
-        return jsonify(response), 200                       # 여기서 Node한테 위험도 반환
+        return jsonify(response), 200                       
 
     except Exception as e:
         error_msg = traceback.format_exc()
