@@ -1,5 +1,4 @@
 const mqtt = require('mqtt');
-
 // 분리된 서비스 모듈 불러오기
 const apiService = require('../services/ai_service');
 const logService = require('../services/log_service');
@@ -21,9 +20,18 @@ module.exports = function(io) {
             try {
                 const rawData = message.toString().trim();
                 const sensorData = JSON.parse(rawData);
+                
+                // 1. 🚀 거짓말을 하지 않는 토픽 주소에서 진짜 차량 ID를 가장 먼저 추출합니다.
+                // (예: "iot/4321/json" ➔ "4321")
+                const currentVehicle = topic.split('/')[1]; 
+
+                // 2. 💡 [핵심] 기존 구조를 깨지 않기 위해, 추출한 진짜 ID로 객체 내부의 vid를 덮어씌웁니다!
+                // 이렇게 하면 STM32가 내부 데이터에 "1234"라고 잘못 보냈어도 "4321"로 정정됩니다.
+                sensorData.vid = currentVehicle; 
+
+                // 3. 기존 구조 그대로 데이터를 안전하게 구조 분해 할당합니다.
                 const { vid, lat, lon, temp, humidity, lux, speed } = sensorData;
                 
-                const currentVehicle = vid || 'UNKNOWN_CAR';
                 console.log(`\n[수신] 차량ID: ${currentVehicle} | 토픽: ${topic}`);
 
                 // 기상청 API 연동
@@ -33,17 +41,15 @@ module.exports = function(io) {
                 }
                 const finalTemp = realWeather ? realWeather.temp : temp;
                 const finalHumidity = realWeather ? realWeather.humidity : humidity;
-                
-                // 💡 [수정 추가] 기상청 강수 형태(PTY) 변수 추출 (통신 실패 시 기본값 0: 강수없음)
                 const finalRainType = realWeather ? realWeather.rainType : 0; 
 
-                // AI 모델 예측 (차량 환경 데이터 분석)
+                // AI 모델 예측
                 const aiData = await apiService.getAiPrediction({ 
                     temp: finalTemp, 
                     humidity: finalHumidity, 
                     lux: lux, 
                     speed: speed,
-                    rainType: finalRainType // 💡 [수정 추가] AI 서버로 강수 형태 전송
+                    rainType: finalRainType
                 });
                 
                 const mapped = aiData.mapped_features;
@@ -59,7 +65,7 @@ module.exports = function(io) {
                     mqttClient.publish(controlTopic, JSON.stringify({ command: 'SAFE' }));
                 }
 
-                // DB 저장
+                // 4. 수정된 올바른 vid(또는 currentVehicle)가 포함된 상태로 DB에 정상 저장됩니다!
                 const currentLogId = await logService.saveSensorLog(
                     currentVehicle, finalTemp, finalHumidity, lux, speed, mapped, riskLevel
                 );

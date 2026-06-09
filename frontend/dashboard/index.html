@@ -76,19 +76,18 @@
         let currentMode = 'ALL'; 
         let chartInstance = null; 
 
-        // 💡 [수정] 4개의 센서 데이터를 모두 표시하도록 차트 초기화 함수 개편
+        // 1. 차트 초기화 함수
         function initChart() {
             const ctx = document.getElementById('sensorChart').getContext('2d');
             if(chartInstance) chartInstance.destroy();
             chartInstance = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: [], // 시간 라벨
+                    labels: [], 
                     datasets: [
                         { label: '속도 (km/h)', borderColor: '#3498db', data: [], fill: false, yAxisID: 'y' },
                         { label: '온도 (℃)', borderColor: '#e74c3c', data: [], fill: false, yAxisID: 'y' },
                         { label: '습도 (%)', borderColor: '#2ecc71', data: [], fill: false, yAxisID: 'y' },
-                        // 조도는 1000단위가 넘어갈 수 있으므로 우측의 별도 축(y1)을 사용하도록 설정
                         { label: '조도 (lux)', borderColor: '#f39c12', data: [], fill: false, yAxisID: 'y1' }
                     ]
                 },
@@ -103,6 +102,7 @@
             });
         }
 
+        // 2. 개별 차량 검색
         function searchVehicle() {
             const vid = document.getElementById('searchInput').value.trim();
             if (!vid) {
@@ -114,7 +114,6 @@
             document.getElementById('single-vehicle-view').style.display = 'block';
             document.getElementById('single-title').innerText = `[${vid}]번 차량 상세 관제`;
             
-            // 초기화
             document.getElementById('single-risk').innerText = "-";
             document.getElementById('single-weather').innerText = "-";
             document.getElementById('single-alert').innerText = "-";
@@ -123,6 +122,7 @@
             socket.emit('subscribe_vehicle', vid); 
         }
 
+        // 3. 전체 보기
         function showAllVehicles() {
             currentMode = 'ALL';
             document.getElementById('searchInput').value = '';
@@ -131,18 +131,23 @@
             socket.emit('subscribe_vehicle', ''); 
         }
 
+        // 4. 소켓 데이터 수신 메인 처리
         socket.on('sensor_update', (data) => {
             const vid = data.vehicle_id;
-            const risk = data.predicted_risk;
-            const speed = data.raw_sensor_data.current_speed;
+            const risk = String(data.predicted_risk).replace(/['\[\]\s]+/g, ''); 
+            
+            // 💡 [안전장치 추가] raw 데이터가 아예 없을 때 에러가 나지 않도록 빈 객체 {} 할당
+            const raw = data.raw_sensor_data || {}; 
+            const speed = raw.speed || raw.current_speed || 0; 
 
             if (currentMode === 'ALL') {
                 updateAllVehiclesView(vid, risk, speed);
             } else if (currentMode === 'SINGLE') {
-                updateSingleVehicleView(data);
+                updateSingleVehicleView(data, risk, speed);
             }
         });
 
+        // 5. 전체 보기 화면 업데이트
         function updateAllVehiclesView(vid, risk, speed) {
             const container = document.getElementById('all-vehicles-view');
             let card = document.getElementById('card-' + vid);
@@ -170,23 +175,24 @@
             }
         }
 
-        // 💡 [수정] 안내 메시지, 날씨, 4종 그래프 데이터 동적 업데이트 완벽 적용
-        function updateSingleVehicleView(data) {
-            const risk = data.predicted_risk;
-            const raw = data.raw_sensor_data;
-            const mapped = data.mapped_features;
+        // 6. 개별 보기 화면 (그래프) 업데이트
+        function updateSingleVehicleView(data, risk, speed) { 
+            const raw = data.raw_sensor_data || {};
+            const mapped = data.mapped_features || {};
             const time = new Date().toLocaleTimeString();
 
-            // 1. 위험도 텍스트 갱신
             const riskSpan = document.getElementById('single-risk');
             riskSpan.className = `risk-${risk}`;
             riskSpan.innerText = risk;
 
-            // 2. 날씨 및 시간대 텍스트 갱신 (AI 서버에서 맵핑된 데이터)
+            // 💡 [안전장치 추가] 맵핑 데이터가 비어있어도 화면이 멈추지 않도록 처리
+            const weather = mapped.mapped_weather || '데이터 없음';
+            const surface = mapped.mapped_surface || '데이터 없음';
+            const mTime = mapped.mapped_time || '데이터 없음';
+            
             document.getElementById('single-weather').innerText = 
-                `기상: ${mapped.mapped_weather} / 노면: ${mapped.mapped_surface} / 시간대: ${mapped.mapped_time}`;
+                `기상: ${weather} / 노면: ${surface} / 시간대: ${mTime}`;
 
-            // 3. 위험도 기반 안내 메시지 갱신 (경고 테이블 로직과 연동)
             const alertSpan = document.getElementById('single-alert');
             if (risk === 'DANGER') {
                 alertSpan.innerText = "치명적 위험! 즉시 50km/h 이하로 크게 감속하세요!";
@@ -199,20 +205,20 @@
                 alertSpan.style.color = "#27ae60";
             }
 
-            // 4. 차트 배열 인덱스 버그 수정 및 데이터 4종 Push
-             const labels = chartInstance.data.labels;
-            const speedData = chartInstance.data.datasets.data; // 0번째: 속도
-            const tempData = chartInstance.data.datasets[1].data;  // 1번째: 온도
-            const humData = chartInstance.data.datasets[2].data;   // 2번째: 습도
-            const luxData = chartInstance.data.datasets[3].data;   // 3번째: 조도
+            if (!chartInstance) return; // 차트가 렌더링되기 전이면 패스
+
+            const labels = chartInstance.data.labels;
+            const speedData = chartInstance.data.datasets[0].data;
+            const tempData = chartInstance.data.datasets[1].data;  
+            const humData = chartInstance.data.datasets[2].data;   
+            const luxData = chartInstance.data.datasets[3].data;   
 
             labels.push(time);
-            speedData.push(raw.current_speed);
-            tempData.push(raw.temp);
-            humData.push(raw.humidity);
-            luxData.push(raw.lux);
+            speedData.push(speed); 
+            tempData.push(raw.temp || 0);
+            humData.push(raw.humidity || 0);
+            luxData.push(raw.lux || 0);
 
-            // 데이터가 15개가 넘어가면 가장 오래된 앞부분 삭제하여 꺾은선 이동 효과
             if (labels.length > 15) {
                 labels.shift();
                 speedData.shift();
