@@ -1,4 +1,4 @@
-
+// app.js
 // 역할 STM32/ESP32 센서데이터 수신,웹에 실시간 전송,DB저장,ML서버 호출,경고처리
 
 const express = require('express');

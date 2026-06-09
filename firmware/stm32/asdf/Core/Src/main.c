@@ -27,10 +27,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdio.h>    // sprintf 함수 사용을 위해 (JSON 묶기용)
-#include <string.h>   // strlen 함수 사용을 위해
+#include <stdio.h>
+#include <string.h>
 #include "bh1750.h"
 #include "mk_dht11.h"
+#include "i2c.h"
 #include "i2c_lcd.h"
 /* USER CODE END Includes */
 
@@ -75,7 +76,14 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+// 1. 차량 고유번호 지정
+const char* VEHICLE_ID = "1234";
 
+// 2. 좌표 (위도, 경도)
+// (서울좌표 : 37.5665f, 126.9780f)
+// (부산좌표 : 35.1796f, 129.0756f)
+const float LAT = 35.1796f;
+const float LON = 129.0756f;
 /* USER CODE END 0 */
 
 /**
@@ -113,27 +121,28 @@ int main(void)
   MX_USART2_UART_Init();
   MX_USART6_UART_Init();
   MX_TIM1_Init();
+  MX_I2C2_Init();
   /* USER CODE BEGIN 2 */
 
-  	// 1. BH1750 조도 센서 초기화 및 측정 모드 실행 (핵심!)
+  	// 1. BH1750 조도 센서 초기화 및 측정 모드 실행
   	BH1750_Init(&hi2c1);
-  	// 센서를 깨우고 '연속 고해상도 측정 모드'로 설정합니다.
+  	// 센서를 깨우고 '연속 고해상도 측정 모드'로 설정
   	BH1750_SetMode(CONTINUOUS_HIGH_RES_MODE);
 
   	HAL_Delay(100);
 
   	// 2. I2C LCD 초기화
-  	hlcd.hi2c = &hi2c1;
+  	hlcd.hi2c = &hi2c2;
   	hlcd.address = 0x4E;
   	lcd_init(&hlcd);
-  	lcd_puts(&hlcd, "KGM System On");
+  	lcd_puts(&hlcd, "System On");
 
   	// 3. DHT11 초기화
   	init_dht11(&dht, &htim1, GPIOB, GPIO_PIN_0);
 
   	HAL_Delay(1500);
   	// lcd_clear(&hlcd);
-  	/* USER CODE END 2 */
+  /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -144,15 +153,14 @@ int main(void)
 		// 1. 온습도(DHT11) 읽기
 		readDHT11(&dht);
 		temp = (float) dht.temperature;
-		// 주의: 적용된 라이브러리 내부 변수명에 오타(humidty)가 반영되어 있습니다.
 		humidity = (float) dht.humidty;
 
-		// 2. 조도(BH1750) 읽기 (올바른 포인터 사용법 적용)
+		// 2. 조도(BH1750) 읽기
 		float temp_lux = 0.0f;
 		if (BH1750_ReadLight(&temp_lux) == BH1750_OK) {
 		    lux = temp_lux;
 		} else {
-		    // 통신이 실패하면 값을 강제로 -1로 만듭니다!
+		    // 통신이 실패하면 값은 -1
 		    lux = -1.0f;
 		}
 
@@ -164,19 +172,19 @@ int main(void)
 		}
 
 		// 4. LCD 디스플레이 업데이트
-		char lcd_buf[16];
-		// lcd_gotoxy(&hlcd, 0, 0); // 첫째 줄로 이동
+		char lcd_buf[1];
+		lcd_gotoxy(&hlcd, 0, 0); // 첫째 줄로 이동
 		sprintf(lcd_buf, "T:%02dC H:%02d%%", (int) temp, (int) humidity);
 		lcd_puts(&hlcd, lcd_buf);
 
-		// lcd_gotoxy(&hlcd, 0, 1); // 둘째 줄로 이동
+		lcd_gotoxy(&hlcd, 0, 1); // 둘째 줄로 이동
 		sprintf(lcd_buf, "L:%04d S:%03d", (int) lux, current_speed);
 		lcd_puts(&hlcd, lcd_buf);
 
 		// 5. ESP32로 보낼 JSON 문자열 포장
 		sprintf(tx_buffer,
-				"\r\n\r\n{\"temp\":%.1f,\"humidity\":%.1f,\"lux\":%.1f,\"speed\":%d}\r\n",
-		        temp, humidity, lux, current_speed);
+				"\r\n\r\n{\"vid\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"temp\":%.1f,\"humidity\":%.1f,\"lux\":%.1f,\"speed\":%d}\r\n",
+		        VEHICLE_ID, LAT, LON, temp, humidity, lux, current_speed);
 
 		// 6. ESP32로 전송 (USART6)
 		HAL_UART_Transmit(&huart6, (uint8_t*) tx_buffer, strlen(tx_buffer),

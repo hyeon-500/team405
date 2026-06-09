@@ -1,9 +1,10 @@
 const mqtt = require('mqtt');
-// const db = require('../../../database/sqlite/sqlite');
+// 분리된 서비스 모듈 불러오기
 const apiService = require('../services/ai_service');
 const logService = require('../services/log_service');
 const alertService = require('../services/alert_service');
 const websocket = require('../websocket/websocket');
+const { getRealtimeWeather } = require('../utils/weather'); 
 
 module.exports = function(io) {
     const MQTT_BROKER = 'mqtt://127.0.0.1:1883';
@@ -11,58 +12,79 @@ module.exports = function(io) {
 
     mqttClient.on('connect', () => {
         console.log("MQTT 브로커 접속 성공");
-        mqttClient.subscribe('iot/nucleo/json');            //   MQTT 수신 -> ESP32가 보내는 토픽 구독
+        
+        // 다중 차량 통신 지원: 특정 토픽이 아닌 와일드카드(+) 사용
+        mqttClient.subscribe('iot/+/json');            
+        //mqttClient.subscribe('iot/nucleo/json'); // 기존 단일 토픽도 하위 호환성 
     });
 
-    mqttClient.on('message', async (topic, message) => {    //  데이터 받음 (시작)
-        if (topic === 'iot/nucleo/json') {
+    mqttClient.on('message', async (topic, message) => {    
+        // 수신 토픽이 json으로 끝나는 데이터만 처리
+        if (topic.endsWith('json')) {
             try {
-                // 디버깅
-                const rawData = message.toString();
-                console.log(`\n[수신한 원본 데이터] : ${rawData}`);
+                const rawData = message.toString().trim();
+                
+                // 센서 데이터 파싱 및 STM32의 차량 고유번호(vid) 추출
+                const sensorData = JSON.parse(rawData);
+                const { vid, temp, humidity, lux, speed, lat, lon } = sensorData;
+                
+                const currentVehicle = vid || 'UNKNOWN_CAR';
+                console.log(`\n[수신] 차량ID: ${currentVehicle} | 토픽: ${topic}`);
 
-                // MQTT 수신 데이터 파싱
-                const sensorData = JSON.parse(message.toString());
-                const { temp, humidity, lux, speed } = sensorData;
+                // 기상청 API 연동
+                let realWeather = null;
+                if (lat && lon) {
+                    realWeather = await getRealtimeWeather(lat, lon);
+                }
+                const finalTemp = realWeather ? realWeather.temp : temp;
+                const finalHumidity = realWeather ? realWeather.humidity : humidity;
 
-                // AI 서버를 통한 위험도 예측                       -> AI 서버(app.py) 호출
-                const aiData = await apiService.getAiPrediction({ temp, humidity, lux, speed });  // 여기서 다음으로 봐야할 파일은 services/api_service.js
-                const mapped = aiData.mapped_features;                                       // app.py에서 반환한 값 여기 저장
-                const riskLevel = String(aiData.predicted_risk).replace(/['\[\]\s]+/g, '');      // app.py에서 반환한 값 여기 저장
+                // AI 모델 예측 (차량 환경 데이터 분석)
+                const aiData = await apiService.getAiPrediction({ 
+                    temp: finalTemp, 
+                    humidity: finalHumidity, 
+                    lux: lux, 
+                    speed: speed 
+                });
+                
+                const mapped = aiData.mapped_features;
+                const riskLevel = String(aiData.predicted_risk).replace(/['\[\]\s]+/g, '');
 
-                // 위험도에 따른 하드웨어 제어 명령 역송신 (Downstream)
+                // 하드웨어 개별 제어
+                const controlTopic = `iot/${currentVehicle}/control`;
+                
                 if (riskLevel === 'DANGER' || riskLevel === 'WARNING') {
-                    mqttClient.publish('iot/nucleo/control', JSON.stringify({ command: riskLevel }));       // 여기 되게 중요 
-                                                                                                            // esp32 -> 서버  | 서버 -> esp32  양방향 통신
-                    console.log(`[제어 명령] 차량으로 ${riskLevel} 상태 전송 완료`);
+                    mqttClient.publish(controlTopic, JSON.stringify({ command: riskLevel }));
+                    console.log(` [제어] ${currentVehicle} 차량으로 ${riskLevel} 제어 명령 역송신 완료`);
                 } else {
-                    mqttClient.publish('iot/nucleo/control', JSON.stringify({ command: 'SAFE' }));
+                    mqttClient.publish(controlTopic, JSON.stringify({ command: 'SAFE' }));
                 }
 
-                // 전체 센서 로그 DB 저장                                (함수 log_service.js로 옮김)
-                const currentLogId = 
-                    await logService.saveSensorLog(
-                        temp,humidity,lux,speed,mapped,riskLevel
-                    );
-
-                // 위험 상태일 경우 이벤트 알림 테이블에 분리 저장       (함수 alert_service.js로 옮김)
-                await alertService.saveAlert(
-                    currentLogId,riskLevel,mapped,speed
+                // DB 저장
+                const currentLogId = await logService.saveSensorLog(
+                    currentVehicle, finalTemp, finalHumidity, lux, speed, mapped, riskLevel
                 );
-        
-                // 프론트엔드 실시간 렌더링을 위한 데이터 브로드캐스팅   (함수 websocket.js로 옮김)
 
-                websocket.broadcastSensorData(io, {
+                if (riskLevel === 'WARNING' || riskLevel === 'DANGER') {
+                    await alertService.saveAlert(
+                        currentLogId, currentVehicle, riskLevel, mapped, speed
+                    );
+                }
+        
+                // 프론트엔드 개별 관제 브로드캐스팅
+                const payload = {
                     log_id: currentLogId,
-                    // 💡 파이썬(app.py)이 만들어준 이름 그대로 프론트엔드에 전달!
+                    vehicle_id: currentVehicle,
                     raw_sensor_data: aiData.raw_sensor_data, 
                     mapped_features: aiData.mapped_features,
                     predicted_risk: aiData.predicted_risk,
                     timestamp: new Date().toLocaleString()
-                });
+                };
+                
+                websocket.broadcastSensorData(io, currentVehicle, payload);
 
             } catch (error) {
-                console.error("🚨 데이터 처리 중 오류 발생:\n", error);
+                console.error("데이터 처리 중 오류 발생:", error.message);
             }
         }
     });

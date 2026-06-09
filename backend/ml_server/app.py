@@ -3,6 +3,7 @@ import pandas as pd
 import joblib
 import os
 import traceback
+from datetime import datetime
 
 app = Flask(__name__)
 
@@ -42,6 +43,12 @@ def predict_risk():
         if lux < 10: mapped_time = 'Night'
         elif lux < 400: mapped_time = 'Dawn'
         else: mapped_time = 'Daylight'
+
+        # 2차 필터링 : 관제 서버의 현재 시간과 교차 검증
+        current_hour = datetime.now().hour
+        if (current_hour >= 19 or current_hour <= 5) and mapped_time == 'Daylight':
+            mapped_time = 'Night'
+            print(f"야간 인공조명(가로등/전조등) 감지됨. (lux: {lux}) -> 'Night'로 보정 완료")
 
         # 온습도 조건에 따른 기상/노면 상태 매핑
         if humidity >= 85:

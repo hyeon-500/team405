@@ -29,6 +29,13 @@
         .DANGER { background-color: #dc3545 !important; }
         .DEFAULT { background-color: #6c757d !important; }
     </style>
+    <!-- 대시보드 상단 컨트롤 패널 영역 -->
+    <div class="control-panel">
+    <label for="vehicleSearch">차량 번호 검색:</label>
+    <input type="text" id="vehicleSearch" placeholder="(미입력시 전체보기)">
+    <button onclick="applyVehicleFilter()">관제 시작</button>
+    <span id="currentWatching">현재 관제 중: <b>[전체 차량]</b></span>
+</div>
 </head>
 <body>
 
@@ -170,6 +177,23 @@
             // 차트 다시 그리기
             chart.update();
         }
+
+        function applyVehicleFilter() {
+            targetVehicleId = document.getElementById('vehicleSearch').value.trim();
+            const displaySpan = document.getElementById('currentWatching');
+    
+            if (targetVehicleId === "") {
+                displaySpan.innerHTML = "현재 관제 중: <b>[전체 차량]</b>";
+            } else {
+                displaySpan.innerHTML = `현재 관제 중: <b>[${targetVehicleId}]</b>`;
+            }
+    
+            // 서버의 websocket.js에게 방(Room)을 바꿔달라고 요청!
+            socket.emit('subscribe_vehicle', targetVehicleId);
+    
+            // 기존 차트 초기화
+            clearChartsAndLogs(); 
+}
     </script>
 </body>
 </html>
