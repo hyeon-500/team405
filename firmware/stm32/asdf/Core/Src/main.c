@@ -77,13 +77,14 @@ void SystemClock_Config(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 // 1. 차량 고유번호 지정
-const char* VEHICLE_ID = "4321";
+const char* VEHICLE_ID = "5632";
 
 // 2. 좌표 (위도, 경도)
 // (서울좌표 : 37.5665f, 126.9780f)
 // (부산좌표 : 35.1796f, 129.0756f)
-const float LAT = 35.1796f;
-const float LON = 129.0756f;
+// (해남좌표 : 34.5567f, 126.5751f)
+const float LAT = 34.5567f;
+const float LON = 126.5751f;
 /* USER CODE END 0 */
 
 /**

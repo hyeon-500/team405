@@ -4,6 +4,7 @@ import joblib
 import os
 import traceback
 from datetime import datetime
+import pytz
 
 app = Flask(__name__)
 
@@ -42,19 +43,23 @@ def predict_risk():
         # Node.js에서 넘겨준 기상청 강수 형태(rainType) 받기
         rain_type = int(data.get('rainType', 0))
 
-        # 조도(lux) 센서값 기준으로 주야간 판별
-        if lux < 10: mapped_time = 'Night'
-        elif lux < 400: mapped_time = 'Dawn'
-        else: mapped_time = 'Daylight'
+        # '한국 현재 시각(KST)' 기준으로 주야간 완벽 분리
+        kst = pytz.timezone('Asia/Seoul')
+        current_hour = datetime.now(kst).hour
 
-        # 2차 필터링 : 관제 서버의 현재 시간과 교차 검증
-        current_hour = datetime.now().hour
-        if (current_hour >= 19 or current_hour <= 5) and mapped_time == 'Daylight':
-            mapped_time = 'Night'
-            print(f"야간 인공조명(가로등/전조등) 감지됨. (lux: {lux}) -> 'Night'로 보정 완료")
+        if 6 <= current_hour < 18:
+            mapped_time = 'Daylight'  # 아침 6시 ~ 오후 5시 59분
+        elif 18 <= current_hour < 24:
+            mapped_time = 'Night'     # 저녁 6시 ~ 밤 11시 59분
+        else:
+            mapped_time = 'Dawn'      # 자정 ~ 새벽 5시 59분
+
+        # 센서 모니터링용 보조 로그: 대낮인데 조도가 낮을 경우 (터널/지하 주차장 등)
+        #if mapped_time == 'Daylight' and lux < 400:
+        #    print(f"[특이사항] 주간 운행 중 조도 저하 감지 (터널/지하 진입 예상). 현재 lux: {lux}")
 
       
-        # 하이픈(-) 대신 쉼표(,)를 사용해 정확한 기상청 PTY 코드 나열
+        # 하이픈(-) 대신 쉼표(,)를 사용해 기상청 PTY 코드 나열
         if rain_type in [3, 4, 9]:
             # 기상청 PTY 1(비), 4(소나기), 5(빗방울)
             mapped_weather, mapped_surface = 'Rain', 'Wet'
@@ -82,9 +87,7 @@ def predict_risk():
         time_mult = 1.3 if mapped_time in ['Night', 'Dawn'] else 1.0
         fatality_weight = round(base_weight * surface_mult * time_mult, 2)
 
-        # =================================================================
-        # 모델 입력 형태 불일치 에러(500)를 막기 위해 주석 반드시 해제!
-        # =================================================================
+       
         input_df = pd.DataFrame([{
             'Weather': mapped_weather,
             'Road_Surface': mapped_surface,
@@ -94,7 +97,7 @@ def predict_risk():
             'korea_fatality_weight': fatality_weight
         }])
 
-        # 예측 결과 추출 (문자열 변환 시 괄호 제거를 위해  추가)
+        
         predicted_risk_str = str(model.predict(input_df))
 
         response = {

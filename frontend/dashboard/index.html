@@ -35,13 +35,13 @@
         #toast-container { 
             position: fixed; 
             top: 20px; 
-            left: 50%; /* 화면의 가로 중앙으로 */
-            transform: translateX(-50%); /* 정확한 한가운데를 맞추기 위한 마법의 속성 */
+            left: 50%; 
+            transform: translateX(-50%); 
             z-index: 9999; 
             display: flex; 
             flex-direction: column; 
             gap: 10px; 
-            align-items: center; /* 알림들이 가운데 정렬되도록 */
+            align-items: center; 
         }
         .toast { 
             background: #e74c3c; color: white; padding: 15px 25px; border-radius: 8px; font-size: 16px; font-weight: bold; 
@@ -54,7 +54,6 @@
         .toast-warning:hover { background: #d68910; }
         .toast-hint { font-size: 12px; opacity: 0.8; font-weight: normal; }
 
-        /* 애니메이션 방향을 오른쪽(X축)에서 위아래(Y축)로 변경 */
         @keyframes slideIn { 
             from { transform: translateY(-50px); opacity: 0; } 
             to { transform: translateY(0); opacity: 1; } 
@@ -70,7 +69,7 @@
     <div id="toast-container"></div>
 
     <header>
-        <h2>통합 관제 대시보드</h2>
+        <h2>🚗 통합 관제 대시보드</h2>
         <div class="search-area">
             <input type="text" id="searchInput" placeholder="차량 번호 입력 (예: 1234)">
             <button onclick="searchVehicle()">검색</button>
@@ -113,19 +112,35 @@
             if(envChartInstance) envChartInstance.destroy();
             if(driveChartInstance) driveChartInstance.destroy();
 
+            // 온도 & 습도 차트 (Y축 강제 고정 적용)
             const ctxEnv = document.getElementById('envChart').getContext('2d');
             envChartInstance = new Chart(ctxEnv, {
                 type: 'line',
                 data: {
                     labels: [], 
                     datasets: [
-                        { label: '온도 (℃)', borderColor: '#e74c3c', data: [], fill: false, tension: 0.1 },
-                        { label: '습도 (%)', borderColor: '#2ecc71', data: [], fill: false, tension: 0.1 }
+                        { label: '온도 (℃)', borderColor: '#e74c3c', data: [], fill: false, tension: 0.1, yAxisID: 'y' },
+                        { label: '습도 (%)', borderColor: '#2ecc71', data: [], fill: false, tension: 0.1, yAxisID: 'y1' }
                     ]
                 },
-                options: { responsive: true, animation: false }
+                options: { 
+                    responsive: true, 
+                    animation: false,
+                    scales: {
+                        y: { 
+                            type: 'linear', display: true, position: 'left',
+                            min: -20, max: 50 // 온도 범위 고정
+                        },
+                        y1: { 
+                            type: 'linear', display: true, position: 'right', 
+                            min: 0, max: 100, // 습도 범위 고정
+                            grid: { drawOnChartArea: false } 
+                        }
+                    }
+                }
             });
 
+            // 💡 1-2. 조도 & 속도 차트
             const ctxDrive = document.getElementById('driveChart').getContext('2d');
             driveChartInstance = new Chart(ctxDrive, {
                 type: 'line',
@@ -188,9 +203,7 @@
             }
         });
 
-        // 🚀 (새로 추가) 동적 토스트 알림 생성 및 클릭 이벤트 함수
         function showToastAlert(vid, risk) {
-            // 이미 해당 차량의 토스트가 떠있다면 중복 생성 방지
             if (document.getElementById(`toast-${vid}`)) return;
 
             const container = document.getElementById('toast-container');
@@ -206,7 +219,6 @@
                 <span class="toast-hint">클릭하여 관제 ➔</span>
             `;
 
-            // 토스트 클릭 시 해당 차량 관제 뷰로 즉시 이동
             toast.onclick = () => {
                 document.getElementById('searchInput').value = vid;
                 searchVehicle(); 
@@ -215,7 +227,6 @@
 
             container.appendChild(toast);
 
-            // 5초 후 자동으로 스르륵 사라짐
             setTimeout(() => {
                 if (toast.parentElement) {
                     toast.style.animation = 'slideOut 0.3s ease-in forwards';
@@ -243,8 +254,8 @@
             card.querySelector('.risk-val').className = `risk-val risk-${risk}`;
             card.querySelector('.risk-val').innerText = risk;
 
-            //  DANGER일 경우 토스트 알림 띄우기
-            if (risk === 'DANGER') {
+            // DANGER뿐만 아니라 WARNING일 경우에도 토스트 알림 띄우기
+            if (risk === 'DANGER' || risk === 'WARNING') {
                 showToastAlert(vid, risk);
             }
         }

@@ -17,7 +17,7 @@ const int   MQTT_PORT    = 1883;              // MQTT 기본 포트 번호
 
 
 // MQTT 주제(Topic) 정의: 데이터의 "주소"와 같은 역할
-const String VEHICLE_ID    = "4321";
+const String VEHICLE_ID    = "5632";
 const String TOPIC_JSON    = "iot/" + VEHICLE_ID + "/json";        // 서버로 보낼 때
 const String TOPIC_CONTROL = "iot/" + VEHICLE_ID + "/control";     // 서버에서 제어 명령 받을 때
 const String TOPIC_STATUS  = "iot/" + VEHICLE_ID + "/status";      // 접속 상태 알릴 때 (String으로 통일)
