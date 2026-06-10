@@ -30,19 +30,47 @@
         #single-vehicle-view { display: none; background: white; padding: 20px; border-radius: 8px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         .info-panel { text-align: center; margin-bottom: 20px; padding: 15px; background: #ecf0f1; border-radius: 8px; }
         .info-panel p { margin: 5px 0; font-size: 16px; }
-        .chart-container { width: 100%; max-width: 900px; margin: 0 auto; }
 
-        /* DANGER 팝업 스타일 */
-        #danger-popup { display: none; position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #e74c3c; color: white; padding: 15px 30px; border-radius: 8px; font-size: 18px; font-weight: bold; box-shadow: 0 4px 10px rgba(0,0,0,0.3); z-index: 1000; }
+        /* 토스트 알림 스타일 */
+        #toast-container { 
+            position: fixed; 
+            top: 20px; 
+            left: 50%; /* 화면의 가로 중앙으로 */
+            transform: translateX(-50%); /* 정확한 한가운데를 맞추기 위한 마법의 속성 */
+            z-index: 9999; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px; 
+            align-items: center; /* 알림들이 가운데 정렬되도록 */
+        }
+        .toast { 
+            background: #e74c3c; color: white; padding: 15px 25px; border-radius: 8px; font-size: 16px; font-weight: bold; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; transition: transform 0.2s, background-color 0.2s; 
+            display: flex; justify-content: space-between; align-items: center; gap: 20px;
+            animation: slideIn 0.3s ease-out forwards;
+        }
+        .toast:hover { transform: scale(1.05); background: #c0392b; } 
+        .toast-warning { background: #f39c12; }
+        .toast-warning:hover { background: #d68910; }
+        .toast-hint { font-size: 12px; opacity: 0.8; font-weight: normal; }
+
+        /* 애니메이션 방향을 오른쪽(X축)에서 위아래(Y축)로 변경 */
+        @keyframes slideIn { 
+            from { transform: translateY(-50px); opacity: 0; } 
+            to { transform: translateY(0); opacity: 1; } 
+        }
+        @keyframes slideOut { 
+            from { transform: translateY(0); opacity: 1; } 
+            to { transform: translateY(-50px); opacity: 0; } 
+        }
     </style>
 </head>
 <body>
 
-    <!-- DANGER 발생 시 띄울 팝업 박스 -->
-    <div id="danger-popup">🚨 [차량 <span id="danger-vid"></span>] 치명적 위험(DANGER) 감지! 즉시 확인 요망!</div>
+    <div id="toast-container"></div>
 
     <header>
-        <h2>🚗 통합 관제 대시보드</h2>
+        <h2>통합 관제 대시보드</h2>
         <div class="search-area">
             <input type="text" id="searchInput" placeholder="차량 번호 입력 (예: 1234)">
             <button onclick="searchVehicle()">검색</button>
@@ -50,45 +78,62 @@
         </div>
     </header>
 
-    <!-- 1. 전체 차량 보기 영역 -->
     <div id="all-vehicles-view">
-        <!-- 차량 카드가 동적으로 추가됩니다. -->
-    </div>
+        </div>
 
-    <!-- 2. 개별 차량 상세 보기 영역 -->
     <div id="single-vehicle-view">
         <h2 id="single-title" style="text-align: center;">차량 상세 정보</h2>
         
-        <!-- 💡 새롭게 추가된 상세 관제 패널 (날씨, 위험도, 안내 메시지) -->
         <div class="info-panel">
             <h2>현재 위험도: <span id="single-risk">-</span></h2>
             <p><strong>☁️ 현재 환경:</strong> <span id="single-weather">-</span></p>
             <p><strong>📢 관제 안내:</strong> <span id="single-alert" style="font-weight:bold;">-</span></p>
         </div>
 
-        <div class="chart-container">
-            <canvas id="sensorChart"></canvas>
+        <div class="charts-wrapper" style="display: flex; flex-direction: column; gap: 40px; max-width: 900px; margin: 0 auto; padding-bottom: 30px;">
+            <div>
+                <h3 style="text-align: center; color: #7f8c8d; margin-bottom: 10px;">실시간 온도 및 습도</h3>
+                <canvas id="envChart"></canvas>
+            </div>
+            <div>
+                <h3 style="text-align: center; color: #7f8c8d; margin-bottom: 10px;">실시간 조도 및 속도</h3>
+                <canvas id="driveChart"></canvas>
+            </div>
         </div>
     </div>
 
     <script>
         const socket = io();
         let currentMode = 'ALL'; 
-        let chartInstance = null; 
+        
+        let envChartInstance = null; 
+        let driveChartInstance = null; 
 
-        // 1. 차트 초기화 함수
         function initChart() {
-            const ctx = document.getElementById('sensorChart').getContext('2d');
-            if(chartInstance) chartInstance.destroy();
-            chartInstance = new Chart(ctx, {
+            if(envChartInstance) envChartInstance.destroy();
+            if(driveChartInstance) driveChartInstance.destroy();
+
+            const ctxEnv = document.getElementById('envChart').getContext('2d');
+            envChartInstance = new Chart(ctxEnv, {
                 type: 'line',
                 data: {
                     labels: [], 
                     datasets: [
-                        { label: '속도 (km/h)', borderColor: '#3498db', data: [], fill: false, yAxisID: 'y' },
-                        { label: '온도 (℃)', borderColor: '#e74c3c', data: [], fill: false, yAxisID: 'y' },
-                        { label: '습도 (%)', borderColor: '#2ecc71', data: [], fill: false, yAxisID: 'y' },
-                        { label: '조도 (lux)', borderColor: '#f39c12', data: [], fill: false, yAxisID: 'y1' }
+                        { label: '온도 (℃)', borderColor: '#e74c3c', data: [], fill: false, tension: 0.1 },
+                        { label: '습도 (%)', borderColor: '#2ecc71', data: [], fill: false, tension: 0.1 }
+                    ]
+                },
+                options: { responsive: true, animation: false }
+            });
+
+            const ctxDrive = document.getElementById('driveChart').getContext('2d');
+            driveChartInstance = new Chart(ctxDrive, {
+                type: 'line',
+                data: {
+                    labels: [], 
+                    datasets: [
+                        { label: '조도 (lux)', borderColor: '#f39c12', data: [], fill: false, yAxisID: 'y' },
+                        { label: '속도 (km/h)', borderColor: '#3498db', data: [], fill: false, yAxisID: 'y1' }
                     ]
                 },
                 options: { 
@@ -102,7 +147,6 @@
             });
         }
 
-        // 2. 개별 차량 검색
         function searchVehicle() {
             const vid = document.getElementById('searchInput').value.trim();
             if (!vid) {
@@ -122,7 +166,6 @@
             socket.emit('subscribe_vehicle', vid); 
         }
 
-        // 3. 전체 보기
         function showAllVehicles() {
             currentMode = 'ALL';
             document.getElementById('searchInput').value = '';
@@ -131,12 +174,10 @@
             socket.emit('subscribe_vehicle', ''); 
         }
 
-        // 4. 소켓 데이터 수신 메인 처리
         socket.on('sensor_update', (data) => {
             const vid = data.vehicle_id;
             const risk = String(data.predicted_risk).replace(/['\[\]\s]+/g, ''); 
             
-            // 💡 [안전장치 추가] raw 데이터가 아예 없을 때 에러가 나지 않도록 빈 객체 {} 할당
             const raw = data.raw_sensor_data || {}; 
             const speed = raw.speed || raw.current_speed || 0; 
 
@@ -147,7 +188,42 @@
             }
         });
 
-        // 5. 전체 보기 화면 업데이트
+        // 🚀 (새로 추가) 동적 토스트 알림 생성 및 클릭 이벤트 함수
+        function showToastAlert(vid, risk) {
+            // 이미 해당 차량의 토스트가 떠있다면 중복 생성 방지
+            if (document.getElementById(`toast-${vid}`)) return;
+
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.id = `toast-${vid}`;
+            
+            toast.className = `toast ${risk === 'WARNING' ? 'toast-warning' : ''}`;
+            const icon = risk === 'DANGER' ? '🚨' : '⚠️';
+            const msg = risk === 'DANGER' ? '치명적 위험 감지!' : '주의 구간 진입';
+
+            toast.innerHTML = `
+                <span>${icon} <strong>[차량 ${vid}]</strong> ${msg}</span>
+                <span class="toast-hint">클릭하여 관제 ➔</span>
+            `;
+
+            // 토스트 클릭 시 해당 차량 관제 뷰로 즉시 이동
+            toast.onclick = () => {
+                document.getElementById('searchInput').value = vid;
+                searchVehicle(); 
+                toast.remove();  
+            };
+
+            container.appendChild(toast);
+
+            // 5초 후 자동으로 스르륵 사라짐
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.style.animation = 'slideOut 0.3s ease-in forwards';
+                    setTimeout(() => toast.remove(), 300); 
+                }
+            }, 5000);
+        }
+
         function updateAllVehiclesView(vid, risk, speed) {
             const container = document.getElementById('all-vehicles-view');
             let card = document.getElementById('card-' + vid);
@@ -167,15 +243,12 @@
             card.querySelector('.risk-val').className = `risk-val risk-${risk}`;
             card.querySelector('.risk-val').innerText = risk;
 
+            //  DANGER일 경우 토스트 알림 띄우기
             if (risk === 'DANGER') {
-                const dangerPopup = document.getElementById('danger-popup');
-                document.getElementById('danger-vid').innerText = vid;
-                dangerPopup.style.display = 'block';
-                setTimeout(() => { dangerPopup.style.display = 'none'; }, 3000);
+                showToastAlert(vid, risk);
             }
         }
 
-        // 6. 개별 보기 화면 (그래프) 업데이트
         function updateSingleVehicleView(data, risk, speed) { 
             const raw = data.raw_sensor_data || {};
             const mapped = data.mapped_features || {};
@@ -185,7 +258,6 @@
             riskSpan.className = `risk-${risk}`;
             riskSpan.innerText = risk;
 
-            // 💡 [안전장치 추가] 맵핑 데이터가 비어있어도 화면이 멈추지 않도록 처리
             const weather = mapped.mapped_weather || '데이터 없음';
             const surface = mapped.mapped_surface || '데이터 없음';
             const mTime = mapped.mapped_time || '데이터 없음';
@@ -205,28 +277,37 @@
                 alertSpan.style.color = "#27ae60";
             }
 
-            if (!chartInstance) return; // 차트가 렌더링되기 전이면 패스
+            if (!envChartInstance || !driveChartInstance) return; 
 
-            const labels = chartInstance.data.labels;
-            const speedData = chartInstance.data.datasets[0].data;
-            const tempData = chartInstance.data.datasets[1].data;  
-            const humData = chartInstance.data.datasets[2].data;   
-            const luxData = chartInstance.data.datasets[3].data;   
+            const envLabels = envChartInstance.data.labels;
+            const tempData = envChartInstance.data.datasets[0].data;  
+            const humData = envChartInstance.data.datasets[1].data;   
 
-            labels.push(time);
-            speedData.push(speed); 
+            envLabels.push(time);
             tempData.push(raw.temp || 0);
             humData.push(raw.humidity || 0);
-            luxData.push(raw.lux || 0);
 
-            if (labels.length > 15) {
-                labels.shift();
-                speedData.shift();
+            if (envLabels.length > 15) {
+                envLabels.shift();
                 tempData.shift();
                 humData.shift();
-                luxData.shift();
             }
-            chartInstance.update();
+            envChartInstance.update();
+
+            const driveLabels = driveChartInstance.data.labels;
+            const luxData = driveChartInstance.data.datasets[0].data;   
+            const speedData = driveChartInstance.data.datasets[1].data;
+
+            driveLabels.push(time);
+            luxData.push(raw.lux || 0);
+            speedData.push(speed); 
+
+            if (driveLabels.length > 15) {
+                driveLabels.shift();
+                luxData.shift();
+                speedData.shift();
+            }
+            driveChartInstance.update();
         }
 
         window.onload = () => { showAllVehicles(); };
