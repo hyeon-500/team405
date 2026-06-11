@@ -5,13 +5,13 @@ const MQTT_BROKER = 'mqtt://127.0.0.1:1883';
 const client = mqtt.connect(MQTT_BROKER);
 
 client.on('connect', () => {
-    console.log("🤖 더미 데이터 생성기 가동! (MQTT 브로커 접속 성공)");
+    console.log("테스트 데이터 생성기 가동! (MQTT 브로커 접속 성공)");
     console.log("==================================================");
 
     // 2초마다 무한 반복해서 데이터 쏘기
     setInterval(() => {
         // ----------------------------------------------------
-        // 🚗 1. 정상 차량 (9876번) - 맑고 밝은 낮, 안전 속도
+        // 정상 차량 (9876번) - 맑고 밝은 낮, 안전 속도
         // ----------------------------------------------------
         const dummy9876 = {
             vid: "9876",
@@ -24,14 +24,14 @@ client.on('connect', () => {
         console.log(`[발송] 9876번 정상 데이터 ➔ 속도: ${dummy9876.speed}km/h | 조도: ${dummy9876.lux}`);
 
         // ----------------------------------------------------
-        // 🚨 2. 위험 차량 (6789번) - 터널 진입(어두움) + 과속
+        // 위험 차량 (6789번) - 터널 진입(어두움) + 과속
         // ----------------------------------------------------
         const dummy6789 = {
             vid: "6789",
-            temp: parseFloat((-5 + Math.random() * 1).toFixed(1)),     // 18~19도 (서늘함)
-            humidity: parseFloat((90 + Math.random() * 5).toFixed(1)), // 65~70% (약간 습함)
-            lux: Math.floor(50 + Math.random() * 50),                  // 50~100 (터널 안이라 어두움)
-            speed: Math.floor(130 + Math.random() * 15)                 // 85~100km/h (과속!)
+            temp: parseFloat((-5 + Math.random() * 1).toFixed(1)),     
+            humidity: parseFloat((90 + Math.random() * 5).toFixed(1)),
+            lux: Math.floor(50 + Math.random() * 50),                
+            speed: Math.floor(130 + Math.random() * 15)              
         };
         client.publish('iot/6789/json', JSON.stringify(dummy6789));
         console.log(`[발송] 6789번 위험 데이터 ➔ 속도: ${dummy6789.speed}km/h | 조도: ${dummy6789.lux}`);

@@ -10,7 +10,7 @@ DEFAULT_DATA_DIR = os.path.join(os.path.dirname(BASE_DIR), 'dataset')
 def create_master_dataset(data_dir=DEFAULT_DATA_DIR):
     print(f"데이터셋 로딩 및 전처리 시작... [경로: {data_dir}]")
     
-    # 1. 한국 통계 데이터(도로교통공단) 로드 및 전처리
+    # 한국 통계 데이터(도로교통공단) 로드 및 전처리
     file_pattern = os.path.join(data_dir, '한국도로교통공단_도로종류별_기상상태별_교통사고_통계_*.csv')
     file_list = glob.glob(file_pattern)
     
@@ -19,7 +19,6 @@ def create_master_dataset(data_dir=DEFAULT_DATA_DIR):
     
     kor_df_list = []
     for f in file_list:
-        # 공공데이터 CSV 파일들이 연도별로 인코딩이 제각각이라 에러 발생. 
         # 여러 인코딩 방식을 순차적으로 시도하도록 예외 처리 추가
         try:
             df = pd.read_csv(f, encoding='cp949')
@@ -46,7 +45,7 @@ def create_master_dataset(data_dir=DEFAULT_DATA_DIR):
     )
     base_fatality_mapping = dict(zip(kor_grouped['Weather'], kor_grouped['Fatality_Rate']))
 
-    # 2. 해외 사고 데이터 로드 및 병합
+    # 해외 사고 데이터 로드 및 병합
     pred_path = os.path.join(data_dir, 'dataset_traffic_accident_prediction1.csv')
     traffic_path = os.path.join(data_dir, 'traffic_accidents.csv')
     
@@ -64,7 +63,7 @@ def create_master_dataset(data_dir=DEFAULT_DATA_DIR):
     })
     
     df_master = pd.concat([df_pred, df_traffic], ignore_index=True)
-  # 3. 텍스트 데이터 범주화
+  # 텍스트 데이터 범주화
     # 해외 데이터셋은 날씨나 노면 상태가 자유 텍스트(예: Fog, foggy, Smoke 등)로 되어 있어서,
     # 정규표현식(str.contains)을 써서 우리 기준(Clear, Rain, Snow, Fog, Cloudy)으로 깔끔하게 통일함
     w_lower = df_master['Weather'].astype(str).str.lower()
@@ -110,7 +109,7 @@ def create_master_dataset(data_dir=DEFAULT_DATA_DIR):
     df_master['injuries_total'] = df_master['injuries_total'].fillna(0).astype(int)
     df_master['injuries_fatal'] = df_master['injuries_fatal'].fillna(0).astype(int)
 
-    # 4. 한국형 복합 위험도 가중치 산출 (핵심 튜닝 포인트)
+    # 한국형 복합 위험도 가중치 산출 (핵심 튜닝 포인트)
     # 단순 기상 상태뿐만 아니라 '노면 상태'와 '시간대'를 곱해서 입체적인 위험도를 만듦
     base_weight = df_master['Weather'].map(base_fatality_mapping).fillna(1.0)
     
@@ -174,7 +173,7 @@ def create_master_dataset(data_dir=DEFAULT_DATA_DIR):
     choices = ['DANGER', 'WARNING']
     df_master['Risk_Level'] = np.select(conditions, choices, default='SAFE')
 
-    # 6. 하드웨어 연동을 위한 조도(lux) 센서 데이터 가상 생성
+    # 하드웨어 연동을 위한 조도(lux) 센서 데이터 가상 생성
     # 실제 관제 시스템(STM32)의 BH1750 조도 센서값과 매핑시키기 위해 시간대와 기상을 엮어 생성함
     np.random.seed(42) 
     size = len(df_master)
@@ -197,7 +196,7 @@ def create_master_dataset(data_dir=DEFAULT_DATA_DIR):
     # 하드웨어 센서 해상도에 맞춰 소수점 1자리로 정리
     df_master['lux'] = np.round(df_master['lux'], 1)
 
-    # 7. 최종 데이터셋 정리 및 저장
+    # 최종 데이터셋 정리 및 저장
     # 데이터 누수 우려로 사상자 수(injuries)를 버리고 실시간으로 수집 가능한 환경 및 주행 특성만 남김
     final_columns = ['Weather', 'Road_Surface', 'Time_of_Day', 'Speed', 'lux', 'korea_fatality_weight', 'Risk_Level']
     ai_master_dataset = df_master[final_columns].copy().dropna()

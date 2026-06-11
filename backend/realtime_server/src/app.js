@@ -20,10 +20,7 @@ const io = new Server(server, { cors: { origin: "*" } });
 app.use(express.json());
 app.use(cors());
 
-// =================================================================
-// [경로 수정 및 추가] 프론트엔드 자바스크립트/CSS 파일을 찾을 수 있도록 정적 경로 개통
-// =================================================================
-// __dirname(src) 기준 3칸 위(../../..)로 올라가서 frontend/dashboard 폴더를 통째로 서빙합니다.
+// 프론트엔드 자바스크립트/CSS 파일을 찾을 수 있도록 정적 경로 개통
 app.use(express.static(path.join(__dirname, '../../../frontend/dashboard')));
 
 // 대시보드 화면(index.html) 제공

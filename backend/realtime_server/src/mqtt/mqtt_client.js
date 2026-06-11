@@ -99,7 +99,7 @@ async function handleSensorData(topic, sensorData, currentVehicle, io, mqttClien
     
     if (riskLevel === 'DANGER' || riskLevel === 'WARNING') {
         mqttClient.publish(controlTopic, JSON.stringify({ command: riskLevel }));
-        console.log(` 🚨 [제어] ${currentVehicle} 차량으로 ${riskLevel} 제어 명령 역송신 완료`);
+        console.log(`[제어] ${currentVehicle} 차량으로 ${riskLevel} 제어 명령 역송신 완료`);
     } else {
         mqttClient.publish(controlTopic, JSON.stringify({ command: 'SAFE' }));
     }

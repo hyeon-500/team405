@@ -1,6 +1,6 @@
 // 기상청 위경도 -> 격자(nx, ny) 변환 유틸리티 함수
 function convertToKmaGrid(lat, lon) {
-    // 기상청 API 가이드에 명시된 투영 변수 (C코드 기준)
+    // 기상청 API 가이드에 명시된 투영 변수
     const RE = 6371.00877; // 지구 반경(km)
     const GRID = 5.0;      // 격자 간격(km)
     const SLAT1 = 30.0;    // 투영 위도1(degree)
@@ -34,7 +34,7 @@ function convertToKmaGrid(lat, lon) {
     if (theta < -Math.PI) theta += 2.0 * Math.PI;
     theta *= sn;
 
-    // 최종 격자 좌표 도출 (가이드에 명시된 +1.5 보정 포함)
+    // 최종 격자 좌표 도출
     const nx = Math.floor(ra * Math.sin(theta) + XO + 1.5);
     const ny = Math.floor(ro - ra * Math.cos(theta) + YO + 1.5);
 
@@ -42,10 +42,3 @@ function convertToKmaGrid(lat, lon) {
 }
 
 module.exports = { convertToKmaGrid };
-
-// ==========================================
-// 테스트 (기상청 가이드 공식 검증 예제)
-// 위도: 37.488201, 경도: 126.929810 입력 시 -> X=59, Y=125 출력
-// ==========================================
-//const grid = convertToKmaGrid(37.488201, 126.929810);
-//console.log(`변환된 기상청 격자 좌표: nx=${grid.nx}, ny=${grid.ny}`);

@@ -6,36 +6,36 @@
 #include <WiFi.h>          // ESP32의 Wi-Fi 기능을 제어하는 라이브러리
 #include <PubSubClient.h>  // MQTT 통신(발행/구독)을 위한 라이브러리
 
-// -------------------------------------------------------
-// 1. 네트워크 및 서버 설정 (사용 환경에 맞게 수정 필요)
-// -------------------------------------------------------
+
+// 네트워크 및 서버 설정 (사용 환경에 맞게 수정 필요)
+
 const char* WIFI_SSID    = "404호";      // 접속할 와이파이 이름
 const char* WIFI_PASS    = "kgitbank@1004";  // 와이파이 비밀번호
 const char* MQTT_SERVER  = "192.168.0.193";   // MQTT 브로커(PC)의 IP 주소
 const int   MQTT_PORT    = 1883;              // MQTT 기본 포트 번호
 
-const String VEHICLE_ID    = "4321";
+const String VEHICLE_ID    = "1234";
 
 const String TOPIC_JSON    = "iot/" + VEHICLE_ID + "/json";        // 서버로 보낼 때
 const String TOPIC_CONTROL = "iot/" + VEHICLE_ID + "/control";     // 서버에서 제어 명령 받을 때
 const String TOPIC_STATUS  = "iot/" + VEHICLE_ID + "/status";      // 접속 상태 알릴 때
 
-// -------------------------------------------------------
-// 2. 하드웨어 핀 설정 (NUCLEO 보드와 연결)
-// -------------------------------------------------------
+
+// 하드웨어 핀 설정 (NUCLEO 보드와 연결)
+
 #define NUCLEO_RX  16       // ESP32의 16번 핀 (NUCLEO의 TX와 연결됨)
 #define NUCLEO_TX  17       // ESP32의 17번 핀 (NUCLEO의 RX와 연결됨)
 #define NUCLEO_BAUD 9600  // NUCLEO와 맞춘 통신 속도
 
-// -------------------------------------------------------
-// 3. 통신 객체 생성
-// -------------------------------------------------------
+
+// 통신 객체 생성
+
 WiFiClient    wifiClient;            
 PubSubClient mqttClient(wifiClient); 
 
-// -------------------------------------------------------
+
 // Wi-Fi 연결 처리
-// -------------------------------------------------------
+
 void connectWiFi()
 {
     WiFi.begin(WIFI_SSID, WIFI_PASS); 
@@ -48,9 +48,8 @@ void connectWiFi()
     Serial.println("\nWi-Fi 연결 완료: " + WiFi.localIP().toString());
 }
 
-// -------------------------------------------------------
+
 // 서버로부터 역송신(Downstream) 제어 명령 수신
-// -------------------------------------------------------
 void callback(char* topic, byte* payload, unsigned int length) {
     String message = "";
     for (int i = 0; i < length; i++) {
@@ -62,9 +61,8 @@ void callback(char* topic, byte* payload, unsigned int length) {
     Serial2.println(message); 
 }
 
-// -------------------------------------------------------
-// [함수] MQTT 브로커 연결 처리
-// -------------------------------------------------------
+
+// MQTT 브로커 연결 처리
 void connectMQTT() {
     mqttClient.setServer(MQTT_SERVER, MQTT_PORT); 
     mqttClient.setCallback(callback);  
@@ -86,9 +84,9 @@ void connectMQTT() {
     }
 }
 
-// -------------------------------------------------------
+
 // 초기 시스템 초기화
-// -------------------------------------------------------
+
 void setup()
 {
     Serial.begin(115200); 
@@ -102,9 +100,7 @@ void setup()
     Serial.println("시스템 준비 완료. NUCLEO 데이터 수신 대기 중...");
 }
 
-// -------------------------------------------------------
-// [루프] 반복 실행 로직
-// -------------------------------------------------------
+
 void loop() {
     // Wi-Fi가 끊기면 스스로 재연결 (먹통 방지)
     if (WiFi.status() != WL_CONNECTED) {

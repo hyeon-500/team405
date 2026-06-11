@@ -72,11 +72,11 @@ def train_and_save_model(data_path=DEFAULT_DATA_PATH, model_path=DEFAULT_MODEL_P
         importances = model_pipeline.named_steps['classifier'].feature_importances_
         
         feature_importance_df = pd.DataFrame({'Feature': all_features, 'Importance': importances})
-        print("\n💡 [변수 중요도 Top 5]")
+        print("\n[변수 중요도 Top 5]")
         print(feature_importance_df.sort_values(by='Importance', ascending=False).head(5).to_string(index=False))
         print("\n")
     except Exception as e:
-        print(f"\n⚠️ 변수 중요도 추출 중 오류 발생: {e}")
+        print(f"\n 변수 중요도 추출 중 오류 발생: {e}")
 
     # 모델 저장 (경로상에 폴더가 없으면 자동 생성)
     os.makedirs(os.path.dirname(model_path), exist_ok=True)

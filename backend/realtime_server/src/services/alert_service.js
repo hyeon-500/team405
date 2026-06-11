@@ -27,7 +27,7 @@ async function saveAlert(
 
       const alertMessage =
             riskLevel === 'DANGER'
-                  ? "치명적 위험! 즉시 50km/h 이하로 크게 감속하세요!"
+                  ? "치명적 위험! 즉시 크게 감속하세요!"
                   : "주의 구간! 서행하세요.";
 
       

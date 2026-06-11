@@ -5,7 +5,7 @@ const router = express.Router();
 const db = require('../../../database/sqlite/sqlite'); // 비동기 DB 모듈
 
 // 최근 센서 로그 50개 조회 API
-router.get('/logs', async (req, res) => {                               // 만약 브라우저에서 http://localhost:3000/api/logs 요청하면 여기 실행됨.
+router.get('/logs', async (req, res) => {
     try {
         const logs = await db.all("SELECT * FROM sensor_logs ORDER BY timestamp DESC LIMIT 50");
         res.json({ success: true, data: logs });

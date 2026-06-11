@@ -54,10 +54,6 @@ def predict_risk():
         else:
             mapped_time = 'Dawn'      # 자정 ~ 새벽 5시 59분
 
-        # 센서 모니터링용 보조 로그: 대낮인데 조도가 낮을 경우 (터널/지하 주차장 등)
-        #if mapped_time == 'Daylight' and lux < 400:
-        #    print(f"[특이사항] 주간 운행 중 조도 저하 감지 (터널/지하 진입 예상). 현재 lux: {lux}")
-
       
         # 하이픈(-) 대신 쉼표(,)를 사용해 기상청 PTY 코드 나열
         if rain_type in [3, 4, 9]:

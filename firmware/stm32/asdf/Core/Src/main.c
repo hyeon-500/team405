@@ -66,8 +66,10 @@ int current_speed = 0;
 // JSON 통신 및 디버깅용 버퍼
 char tx_buffer[256];
 char debug_buffer[256];
+
 // ESP32에서 수신받을 데이터를 담을 바구니
 char rx_buffer[100];
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -78,15 +80,16 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
 // 1. 차량 고유번호 지정
-const char *VEHICLE_ID = "4321";
+const char *VEHICLE_ID = "1234";
 
 // 2. 좌표 (위도, 경도)
 // (서울좌표 : 37.5665f, 126.9780f)
 // (부산좌표 : 35.1796f, 129.0756f)
 // (해남좌표 : 34.5567f, 126.5751f)
-const float LAT = 35.1796f;
-const float LON = 129.0756f;
+const float LAT = 37.5665f;
+const float LON = 126.9780f;
 /* USER CODE END 0 */
 
 /**
@@ -149,19 +152,19 @@ int main(void) {
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 
-	// 💡 [추가] 서버 상태를 저장할 4글자 변수 (기본값은 WAIT)
+	// 서버 상태를 저장할 4글자 변수 (기본값은 WAIT)
 	char ai_status[5] = "WAIT";
 
 	while (1) {
 		/* USER CODE END WHILE */
 
 		/* USER CODE BEGIN 3 */
-		// 1. 온습도(DHT11) 읽기
+		// 온습도(DHT11) 읽기
 		readDHT11(&dht);
 		temp = (float) dht.temperature;
 		humidity = (float) dht.humidty;
 
-		// 2. 조도(BH1750) 읽기
+		// 조도(BH1750) 읽기
 		float temp_lux = 0.0f;
 		if (BH1750_ReadLight(&temp_lux) == BH1750_OK) {
 			lux = temp_lux;
@@ -169,17 +172,17 @@ int main(void) {
 			lux = -1.0f;
 		}
 
-		// 3. 가상 속도(ADC 가변 저항) 읽기 (PA0 핀)
+		// 가상 속도(ADC 가변 저항) 읽기 (PA0 핀)
 		HAL_ADC_Start(&hadc1);
 		if (HAL_ADC_PollForConversion(&hadc1, 10) == HAL_OK) {
 			uint32_t adc_val = HAL_ADC_GetValue(&hadc1);
 			current_speed = (adc_val * 140) / 4095; // 최고 105km/h 매핑
 		}
 
-		// 4. LCD 디스플레이 업데이트
+		// LCD 디스플레이 업데이트
 		char lcd_buf[20];
 		lcd_gotoxy(&hlcd, 0, 0);
-		// 첫째 줄 우측 끝에 ai_status 글자를 삽입하여 16칸을 채웁니다.
+
 		sprintf(lcd_buf, "T:%02dC H:%02d%% %s", (int) temp, (int) humidity,
 				ai_status);
 		lcd_puts(&hlcd, lcd_buf);
@@ -189,7 +192,7 @@ int main(void) {
 		lcd_puts(&hlcd, lcd_buf);
 
 		sprintf(tx_buffer,
-				"@@@{\"vid\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"temp\":%.1f,\"humidity\":%.1f,\"lux\":%.1f,\"speed\":%d}\n",
+				"{\"vid\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"temp\":%.1f,\"humidity\":%.1f,\"lux\":%.1f,\"speed\":%d}\n",
 				VEHICLE_ID, LAT, LON, temp, humidity, lux, current_speed);
 
 		HAL_UART_Transmit(&huart6, (uint8_t*) tx_buffer, strlen(tx_buffer),
@@ -200,21 +203,21 @@ int main(void) {
 		HAL_UART_Transmit(&huart2, (uint8_t*) debug_buffer,
 				strlen(debug_buffer), 500);
 
-		// 6. 서버의 제어 명령 수신 (개선된 방식)
+		// 서버의 제어 명령 수신
 		memset(rx_buffer, 0, sizeof(rx_buffer));
 
-		// 💡 데이터가 완전히 다 들어오지 않아도, 500ms 동안 들어온 만큼만 받습니다.
+		// 데이터가 완전히 다 들어오지 않아도, 500ms 동안 들어온 만큼만 받습니다.
 		HAL_UART_Receive(&huart6, (uint8_t*) rx_buffer, sizeof(rx_buffer) - 1,
 				500);
 
-		// 💡 수신된 데이터가 있다면 여기서 즉시 처리
+		// 수신된 데이터가 있다면 여기서 즉시 처리
 		if (strlen(rx_buffer) > 0) {
 			// 디버깅용: 수신된 내용을 PC 모니터(USART2)로 출력해 확인
 			sprintf(debug_buffer, "[RX_DEBUG] %s\r\n", rx_buffer);
 			HAL_UART_Transmit(&huart2, (uint8_t*) debug_buffer,
 					strlen(debug_buffer), 100);
 
-			// 7. 받은 명령으로 LED(PA5) 제어 및 LCD 업데이트
+			// 받은 명령으로 LED(PA5) 제어 및 LCD 업데이트
 			if (strstr(rx_buffer, "DANGER") != NULL) {
 				strcpy(ai_status, "DANG");
 				HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_SET);
@@ -226,8 +229,8 @@ int main(void) {
 				HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
 			}
 		}
-		// 7. 받은 명령으로 LED(PA5) 제어 및 LCD 업데이트
-		// 💡 [개선] strstr은 대소문자를 구분하므로, 혹시 모를 대문자/소문자 문제와
+		// 받은 명령으로 LED(PA5) 제어 및 LCD 업데이트
+		// strstr은 대소문자를 구분하므로, 혹시 모를 대문자/소문자 문제와
 		// JSON 형태의 복잡함을 모두 해결하기 위해 각 단어가 포함되어 있는지만 검사합니다.
 
 		if (strstr(rx_buffer, "DANGER") != NULL) {
@@ -240,11 +243,11 @@ int main(void) {
 			strcpy(ai_status, "SAFE");
 			HAL_GPIO_WritePin(GPIOA, GPIO_PIN_5, GPIO_PIN_RESET);
 		} else if (strlen(rx_buffer) > 0) {
-			// 💡 뭔가 받긴 했는데 DANGER/WARNING/SAFE가 아닐 때 (로그용)
+			// 뭔가 받긴 했는데 DANGER/WARNING/SAFE가 아닐 때 (로그용)
 			strcpy(ai_status, "ETHR");
 		}
 
-		// 8. 남은 시간 대기 (총 1초 주기 유지)
+		// 남은 시간 대기 (총 1초 주기 유지)
 		HAL_Delay(500);
 	}
 	/* USER CODE END 3 */
