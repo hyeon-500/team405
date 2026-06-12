@@ -1,1 +1,0 @@
-SQLite DB 저장 => (sensor_data 온습도,조도),(event_log WARNING 발생,브레이크 동작),(can_log CAN메시지 기록)

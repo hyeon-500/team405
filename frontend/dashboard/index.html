@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 기반 차량 환경 관제 시스템</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; }
+        header { background: #2c3e50; color: white; padding: 15px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center; }
+        .search-area input { padding: 8px; font-size: 16px; border-radius: 4px; border: none; }
+        .search-area button { padding: 8px 15px; font-size: 16px; border-radius: 4px; border: none; cursor: pointer; background: #3498db; color: white; font-weight: bold; }
+        .search-area button:hover { background: #2980b9; }
+
+        /* 전체 차량 뷰 격자 레이아웃 */
+        #all-vehicles-view { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 20px; }
+        .vehicle-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); width: 200px; text-align: center; }
+        .vehicle-card h3 { margin: 0 0 10px 0; color: #333; }
+        .speed-text { font-size: 24px; font-weight: bold; color: #2c3e50; }
+        
+        /* 위험도 색상 라벨 */
+        .risk-SAFE { color: #27ae60; font-weight: bold; }
+        .risk-WARNING { color: #f39c12; font-weight: bold; }
+        .risk-DANGER { color: #c0392b; font-weight: bold; animation: blink 1s infinite; }
+
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        /* 개별 차량 뷰 (초기엔 숨김) */
+        #single-vehicle-view { display: none; background: white; padding: 20px; border-radius: 8px; margin-top: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .info-panel { text-align: center; margin-bottom: 20px; padding: 15px; background: #ecf0f1; border-radius: 8px; }
+        .info-panel p { margin: 5px 0; font-size: 16px; }
+
+        /* 토스트 알림 스타일 */
+        #toast-container { 
+            position: fixed; 
+            top: 20px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            z-index: 9999; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 10px; 
+            align-items: center; 
+        }
+        .toast { 
+            background: #e74c3c; color: white; padding: 15px 25px; border-radius: 8px; font-size: 16px; font-weight: bold; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3); cursor: pointer; transition: transform 0.2s, background-color 0.2s; 
+            display: flex; justify-content: space-between; align-items: center; gap: 20px;
+            animation: slideIn 0.3s ease-out forwards;
+        }
+        .toast:hover { transform: scale(1.05); background: #c0392b; } 
+        .toast-warning { background: #f39c12; }
+        .toast-warning:hover { background: #d68910; }
+        .toast-hint { font-size: 12px; opacity: 0.8; font-weight: normal; }
+
+        @keyframes slideIn { 
+            from { transform: translateY(-50px); opacity: 0; } 
+            to { transform: translateY(0); opacity: 1; } 
+        }
+        @keyframes slideOut { 
+            from { transform: translateY(0); opacity: 1; } 
+            to { transform: translateY(-50px); opacity: 0; } 
+        }
+    </style>
+</head>
+<body>
+
+    <div id="toast-container"></div>
+
+    <header>
+        <h2>🚗 통합 관제 대시보드</h2>
+        <div class="search-area">
+            <input type="text" id="searchInput" placeholder="차량 번호 입력 (예: 1234)">
+            <button onclick="searchVehicle()">검색</button>
+            <button onclick="showAllVehicles()" style="background: #e67e22;">전체 보기</button>
+        </div>
+    </header>
+
+    <div id="all-vehicles-view">
+        </div>
+
+    <div id="single-vehicle-view">
+        <h2 id="single-title" style="text-align: center;">차량 상세 정보</h2>
+        
+        <div class="info-panel">
+            <h2>현재 위험도: <span id="single-risk">-</span></h2>
+            <p><strong>☁️ 현재 환경:</strong> <span id="single-weather">-</span></p>
+            <p><strong>📢 관제 안내:</strong> <span id="single-alert" style="font-weight:bold;">-</span></p>
+        </div>
+
+        <div class="charts-wrapper" style="display: flex; flex-direction: column; gap: 40px; max-width: 900px; margin: 0 auto; padding-bottom: 30px;">
+            <div>
+                <h3 style="text-align: center; color: #7f8c8d; margin-bottom: 10px;">실시간 온도 및 습도</h3>
+                <canvas id="envChart"></canvas>
+            </div>
+            <div>
+                <h3 style="text-align: center; color: #7f8c8d; margin-bottom: 10px;">실시간 조도 및 속도</h3>
+                <canvas id="driveChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let currentMode = 'ALL'; 
+        
+        let envChartInstance = null; 
+        let driveChartInstance = null; 
+
+        function initChart() {
+            if(envChartInstance) envChartInstance.destroy();
+            if(driveChartInstance) driveChartInstance.destroy();
+
+            // 온도 & 습도 차트 (Y축 강제 고정 적용)
+            const ctxEnv = document.getElementById('envChart').getContext('2d');
+            envChartInstance = new Chart(ctxEnv, {
+                type: 'line',
+                data: {
+                    labels: [], 
+                    datasets: [
+                        { label: '온도 (℃)', borderColor: '#e74c3c', data: [], fill: false, tension: 0.1, yAxisID: 'y' },
+                        { label: '습도 (%)', borderColor: '#2ecc71', data: [], fill: false, tension: 0.1, yAxisID: 'y1' }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    animation: false,
+                    scales: {
+                        y: { 
+                            type: 'linear', display: true, position: 'left',
+                            min: -20, max: 50 // 온도 범위 고정
+                        },
+                        y1: { 
+                            type: 'linear', display: true, position: 'right', 
+                            min: 0, max: 100, // 습도 범위 고정
+                            grid: { drawOnChartArea: false } 
+                        }
+                    }
+                }
+            });
+
+            // 💡 1-2. 조도 & 속도 차트
+            const ctxDrive = document.getElementById('driveChart').getContext('2d');
+            driveChartInstance = new Chart(ctxDrive, {
+                type: 'line',
+                data: {
+                    labels: [], 
+                    datasets: [
+                        { label: '조도 (lux)', borderColor: '#f39c12', data: [], fill: false, yAxisID: 'y' },
+                        { label: '속도 (km/h)', borderColor: '#3498db', data: [], fill: false, yAxisID: 'y1' }
+                    ]
+                },
+                options: { 
+                    responsive: true, 
+                    animation: false,
+                    scales: {
+                        y: { type: 'linear', display: true, position: 'left' },
+                        y1: { type: 'linear', display: true, position: 'right', grid: { drawOnChartArea: false } }
+                    }
+                }
+            });
+        }
+
+        function searchVehicle() {
+            const vid = document.getElementById('searchInput').value.trim();
+            if (!vid) {
+                alert("차량 번호를 입력해주세요.");
+                return;
+            }
+            currentMode = 'SINGLE';
+            document.getElementById('all-vehicles-view').style.display = 'none';
+            document.getElementById('single-vehicle-view').style.display = 'block';
+            document.getElementById('single-title').innerText = `[${vid}]번 차량 상세 관제`;
+            
+            document.getElementById('single-risk').innerText = "-";
+            document.getElementById('single-weather').innerText = "-";
+            document.getElementById('single-alert').innerText = "-";
+            initChart();
+
+            socket.emit('subscribe_vehicle', vid); 
+        }
+
+        function showAllVehicles() {
+            currentMode = 'ALL';
+            document.getElementById('searchInput').value = '';
+            document.getElementById('all-vehicles-view').style.display = 'flex';
+            document.getElementById('single-vehicle-view').style.display = 'none';
+            socket.emit('subscribe_vehicle', ''); 
+        }
+
+        socket.on('sensor_update', (data) => {
+            const vid = data.vehicle_id;
+            const risk = String(data.predicted_risk).replace(/['\[\]\s]+/g, ''); 
+            
+            const raw = data.raw_sensor_data || {}; 
+            const speed = raw.speed || raw.current_speed || 0; 
+
+            if (currentMode === 'ALL') {
+                updateAllVehiclesView(vid, risk, speed);
+            } else if (currentMode === 'SINGLE') {
+                updateSingleVehicleView(data, risk, speed);
+            }
+        });
+
+        function showToastAlert(vid, risk) {
+            if (document.getElementById(`toast-${vid}`)) return;
+
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.id = `toast-${vid}`;
+            
+            toast.className = `toast ${risk === 'WARNING' ? 'toast-warning' : ''}`;
+            const icon = risk === 'DANGER' ? '🚨' : '⚠️';
+            const msg = risk === 'DANGER' ? '치명적 위험 감지!' : '주의 구간 진입';
+
+            toast.innerHTML = `
+                <span>${icon} <strong>[차량 ${vid}]</strong> ${msg}</span>
+                <span class="toast-hint">클릭하여 관제 ➔</span>
+            `;
+
+            toast.onclick = () => {
+                document.getElementById('searchInput').value = vid;
+                searchVehicle(); 
+                toast.remove();  
+            };
+
+            container.appendChild(toast);
+
+            setTimeout(() => {
+                if (toast.parentElement) {
+                    toast.style.animation = 'slideOut 0.3s ease-in forwards';
+                    setTimeout(() => toast.remove(), 300); 
+                }
+            }, 5000);
+        }
+
+        function updateAllVehiclesView(vid, risk, speed) {
+            const container = document.getElementById('all-vehicles-view');
+            let card = document.getElementById('card-' + vid);
+
+            if (!card) {
+                card = document.createElement('div');
+                card.className = 'vehicle-card';
+                card.id = 'card-' + vid;
+                card.innerHTML = `
+                    <h3>차량 ID: ${vid}</h3>
+                    <div class="speed-text"><span class="speed-val">0</span> km/h</div>
+                    <div class="risk-text">위험도: <span class="risk-val"></span></div>
+                `;
+                container.appendChild(card);
+            }
+            card.querySelector('.speed-val').innerText = speed;
+            card.querySelector('.risk-val').className = `risk-val risk-${risk}`;
+            card.querySelector('.risk-val').innerText = risk;
+
+            // DANGER뿐만 아니라 WARNING일 경우에도 토스트 알림 띄우기
+            if (risk === 'DANGER' || risk === 'WARNING') {
+                showToastAlert(vid, risk);
+            }
+        }
+
+        function updateSingleVehicleView(data, risk, speed) { 
+            const raw = data.raw_sensor_data || {};
+            const mapped = data.mapped_features || {};
+            const time = new Date().toLocaleTimeString();
+
+            const riskSpan = document.getElementById('single-risk');
+            riskSpan.className = `risk-${risk}`;
+            riskSpan.innerText = risk;
+
+            const weather = mapped.mapped_weather || '데이터 없음';
+            const surface = mapped.mapped_surface || '데이터 없음';
+            const mTime = mapped.mapped_time || '데이터 없음';
+            
+            document.getElementById('single-weather').innerText = 
+                `기상: ${weather} / 노면: ${surface} / 시간대: ${mTime}`;
+
+            const alertSpan = document.getElementById('single-alert');
+            if (risk === 'DANGER') {
+                alertSpan.innerText = "치명적 위험! 즉시 50km/h 이하로 크게 감속하세요!";
+                alertSpan.style.color = "#c0392b";
+            } else if (risk === 'WARNING') {
+                alertSpan.innerText = "주의 구간! 서행하세요.";
+                alertSpan.style.color = "#f39c12";
+            } else {
+                alertSpan.innerText = "안전 운행 구간입니다.";
+                alertSpan.style.color = "#27ae60";
+            }
+
+            if (!envChartInstance || !driveChartInstance) return; 
+
+            const envLabels = envChartInstance.data.labels;
+            const tempData = envChartInstance.data.datasets[0].data;  
+            const humData = envChartInstance.data.datasets[1].data;   
+
+            envLabels.push(time);
+            tempData.push(raw.temp || 0);
+            humData.push(raw.humidity || 0);
+
+            if (envLabels.length > 15) {
+                envLabels.shift();
+                tempData.shift();
+                humData.shift();
+            }
+            envChartInstance.update();
+
+            const driveLabels = driveChartInstance.data.labels;
+            const luxData = driveChartInstance.data.datasets[0].data;   
+            const speedData = driveChartInstance.data.datasets[1].data;
+
+            driveLabels.push(time);
+            luxData.push(raw.lux || 0);
+            speedData.push(speed); 
+
+            if (driveLabels.length > 15) {
+                driveLabels.shift();
+                luxData.shift();
+                speedData.shift();
+            }
+            driveChartInstance.update();
+        }
+
+        window.onload = () => { showAllVehicles(); };
+    </script>
+</body>
+</html>
