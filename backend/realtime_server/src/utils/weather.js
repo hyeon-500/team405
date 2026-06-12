@@ -2,7 +2,7 @@
 const axios = require('axios');
 const { convertToKmaGrid } = require('./weatherxy'); // 격자 변환 모듈
 
-async function getRealtimeWeather(lat, lon) {
+async function getRealtimeWeather(lat, lon) { // 호출해서 기상데이터 가져옴
     const { nx, ny } = convertToKmaGrid(lat, lon);
     const now = new Date();
     

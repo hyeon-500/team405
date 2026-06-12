@@ -13,8 +13,9 @@ const apiRoutes = require('./routes/api');
 const mqttService = require('./mqtt/mqtt_client');
 
 const app = express();
-const server = http.createServer(app);
+const server = http.createServer(app);      
 const io = new Server(server, { cors: { origin: "*" } });
+// 외부 대시보드나 다른 서비스가 제약없이 API 실시간 소켓에 접근할 수 있도록 전역 CORS 허용
 
 // 미들웨어 설정
 app.use(express.json());

@@ -5,13 +5,13 @@ const apiService = require('../services/ai_service');
 const logService = require('../services/log_service');
 const alertService = require('../services/alert_service');
 const websocket = require('../websocket/websocket');
-const { getRealtimeWeather } = require('../utils/weather'); 
+const { getRealtimeWeather } = require('../utils/weather'); // 모듈 부르기
 
 // 차량별 대기열(Queue) 보관소
 const vehicleQueues = {};
 
 // 큐 처리 엔진 (한 차량의 데이터는 무조건 1개씩 순차 처리)
-async function processQueue(vid, io, mqttClient) {
+async function processQueue(vid, io, mqttClient) {              // 다중차량에서 데이터가 동시에 와도 큐에서 순차 처리
     if (vehicleQueues[vid].isProcessing) return; 
     
     vehicleQueues[vid].isProcessing = true; 
@@ -76,13 +76,15 @@ async function handleSensorData(topic, sensorData, currentVehicle, io, mqttClien
     // 기상청 API 연동
     let realWeather = null;
     if (lat && lon) {
-        realWeather = await getRealtimeWeather(lat, lon);
+        realWeather = await getRealtimeWeather(lat, lon); // getRealtimeWeather => weather.js
     }
+    // API호출에 실패하거나 값이 없으면 STM32 센서가 측정한 물리값(temp,humidity)을 백업데이터로 유지,강수형태는 0(맑음)을 기본값으로 지정
     const finalTemp = realWeather ? realWeather.temp : temp;
     const finalHumidity = realWeather ? realWeather.humidity : humidity;
     const finalRainType = realWeather ? realWeather.rainType : 0; 
 
     // AI 모델 예측
+    // JSON으로 패킹하여 api_service.js를 통해  Flask AI 서버로 보냄.
     const aiData = await apiService.getAiPrediction({ 
         temp: finalTemp, 
         humidity: finalHumidity, 
@@ -91,6 +93,9 @@ async function handleSensorData(topic, sensorData, currentVehicle, io, mqttClien
         rainType: finalRainType
     });
     
+    // Flask 서버가 배열 문자열 형태로 반환하는 치명적인 포맷 오류 가능성을 차단하기 위해
+    // 자바스크립트 단에서 replace(/['\[\]\s]+/g, '') 정규식 필터링을 걸어 대괄호, 따옴표, 공백을 완전히     
+    // 깎아내고 완벽한 순수 알파벳 문자열(SAFE, WARNING, DANGER)만 추출해 냅니다.
     const mapped = aiData.mapped_features;
     const riskLevel = String(aiData.predicted_risk).replace(/['\[\]\s]+/g, '');
 
@@ -105,10 +110,14 @@ async function handleSensorData(topic, sensorData, currentVehicle, io, mqttClien
     }
 
     // DB 저장
+
+    // log_service.js 를 통해 모든 차량의 센서 원본과 매핑특성,AI 예측 등급을 sensor_logs 테이블에 기록하고
+    // 고유 키인 currentLogId를 반환 받는다
     const currentLogId = await logService.saveSensorLog(
         currentVehicle, finalTemp, finalHumidity, lux, speed, mapped, riskLevel
     );
 
+    // 만약 등급이 WR or DN 이면 외래키를 물고 alert_service.js 를 실행후 위험발생 원인 문구,경고메시지 alert_events 테이블에 저장 
     if (riskLevel === 'WARNING' || riskLevel === 'DANGER') {
         await alertService.saveAlert(
             currentLogId, currentVehicle, riskLevel, mapped, speed

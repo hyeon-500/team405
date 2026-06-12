@@ -119,14 +119,14 @@ int main(void) {
 	/* USER CODE END SysInit */
 
 	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
-	MX_ADC1_Init();
+	MX_GPIO_Init();		// DANGER 수신받을때 경고 LED
+	MX_ADC1_Init();		// 가변저항(가상의 차량속도)
 	MX_CAN1_Init();
-	MX_I2C1_Init();
-	MX_USART2_UART_Init();
-	MX_USART6_UART_Init();
-	MX_TIM1_Init();
-	MX_I2C2_Init();
+	MX_I2C1_Init();		// BH1750 조도센서 제어용 버스
+	MX_USART2_UART_Init();	// PC 디버깅용 시리얼 채널
+	MX_USART6_UART_Init();	// ESP32 보드와 직접 연결되어 데이터를 주고받는 메인 통신채널
+	MX_TIM1_Init();		// DHT11 온습도 센서의 데이터 라인과 정밀 타이밍 제어용
+	MX_I2C2_Init();		// LCD제어용 버스
 	/* USER CODE BEGIN 2 */
 
 	// BH1750 조도 센서 초기화 및 측정 모드 실행
@@ -191,22 +191,22 @@ int main(void) {
 		sprintf(lcd_buf, "L:%04d S:%03d", (int) lux, current_speed);
 		lcd_puts(&hlcd, lcd_buf);
 
-		sprintf(tx_buffer,
+		sprintf(tx_buffer,		// 송신 데이터 포맷
 				"{\"vid\":\"%s\",\"lat\":%.4f,\"lon\":%.4f,\"temp\":%.1f,\"humidity\":%.1f,\"lux\":%.1f,\"speed\":%d}\n",
 				VEHICLE_ID, LAT, LON, temp, humidity, lux, current_speed);
 
 		HAL_UART_Transmit(&huart6, (uint8_t*) tx_buffer, strlen(tx_buffer),
-				500);
+				500); // 온습도,조도,가변저항 속도를 순차적으로 읽어 LCD에 뿌린뒤,JSOM 조립후 			huart6으로 송신
 
 		// 디버깅 출력
-		sprintf(debug_buffer, "[SEND] %s", tx_buffer);
+		sprintf(debug_buffer, "[SEND] %s", tx_buffer);                     
 		HAL_UART_Transmit(&huart2, (uint8_t*) debug_buffer,
 				strlen(debug_buffer), 500);
 
 		// 서버의 제어 명령 수신
 		memset(rx_buffer, 0, sizeof(rx_buffer));
 
-		// 데이터가 완전히 다 들어오지 않아도, 500ms 동안 들어온 만큼만 받습니다.
+		// 데이터가 완전히 다 들어오지 않아도, 500ms 동안 ESP로부터 들어온 만큼만 받습니다.
 		HAL_UART_Receive(&huart6, (uint8_t*) rx_buffer, sizeof(rx_buffer) - 1,
 				500);
 

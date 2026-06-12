@@ -16,8 +16,8 @@ const int   MQTT_PORT    = 1883;              // MQTT 기본 포트 번호
 
 const String VEHICLE_ID    = "1234";
 
-const String TOPIC_JSON    = "iot/" + VEHICLE_ID + "/json";        // 서버로 보낼 때
-const String TOPIC_CONTROL = "iot/" + VEHICLE_ID + "/control";     // 서버에서 제어 명령 받을 때
+const String TOPIC_JSON    = "iot/" + VEHICLE_ID + "/json";        // 서버로 보낼때                        (publish)
+const String TOPIC_CONTROL = "iot/" + VEHICLE_ID + "/control";     // 서버로부터 위험 판단 명령을 수신     (Subscribe)
 const String TOPIC_STATUS  = "iot/" + VEHICLE_ID + "/status";      // 접속 상태 알릴 때
 
 
